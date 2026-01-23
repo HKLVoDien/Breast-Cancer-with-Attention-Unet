@@ -4,6 +4,7 @@
 import os
 import pandas as pd
 import numpy as np
+import re
 def count_images(base_path):
     folders = os.listdir(base_path)
     total_images = 0
@@ -17,6 +18,18 @@ def count_images(base_path):
                 total_images += len(os.listdir(class_path))
 
     return total_images
+def extract_xy_from_filename(filename):
+    """
+    Ví dụ filename:
+    10253_idx5_x1001_y1001_class0.png
+    """
+    match = re.search(r"_x(\d+)_y(\d+)", filename)
+    if match:
+        x = int(match.group(1))
+        y = int(match.group(2))
+        return x, y
+    else:
+        raise ValueError(f"Cannot extract x,y from filename: {filename}")
 
 def breast_cancer_dataframe(base_path):
     records = []
@@ -32,10 +45,13 @@ def breast_cancer_dataframe(base_path):
                 continue
 
             for image_name in os.listdir(class_path):
+                x, y = extract_xy_from_filename(image_name)
                 records.append({
                     "patient_id": patient_id,
                     "path": os.path.join(class_path, image_name),
-                    "target": int(c)
+                    "target": int(c),
+                    "x": x,
+                    "y": y
                 })
 
     return pd.DataFrame(records)
