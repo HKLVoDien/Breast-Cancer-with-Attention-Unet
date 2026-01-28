@@ -5,8 +5,8 @@ import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-CSV_PATH = "../../data/metadata/idc_metadata.csv"
-OUTPUT_DIR = "../../data/metadata"
+CSV_PATH = "data/metadata/idc_metadata.csv"
+OUTPUT_DIR = "data/metadata"
 RANDOM_STATE = 0
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -15,8 +15,8 @@ import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-CSV_PATH = "../../data/metadata/idc_metadata.csv"
-OUTPUT_DIR = "../../data/metadata"
+CSV_PATH = "data/metadata/idc_metadata.csv"
+OUTPUT_DIR = "data/metadata"
 RANDOM_STATE = 0
 
 def main():

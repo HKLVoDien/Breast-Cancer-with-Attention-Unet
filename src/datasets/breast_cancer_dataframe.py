@@ -56,16 +56,24 @@ def breast_cancer_dataframe(base_path):
 
     return pd.DataFrame(records)
 
+def build_metadata_csv(
+    data_root="data/IDC_regular_ps50_idx5",
+    output_csv="data/metadata/idc_metadata.csv"
+):
+    df = breast_cancer_dataframe(data_root)
+    os.makedirs(os.path.dirname(output_csv), exist_ok=True)
+    df.to_csv(output_csv, index=False)
+    return df
 
 if __name__ == "__main__":
-    base_path = "../../data/IDC_regular_ps50_idx5"
+    base_path = "data/IDC_regular_ps50_idx5"
     total_images = count_images(base_path)
     print(f"Tổng số ảnh trong dataset: {total_images}")
     df = breast_cancer_dataframe(base_path)
     print(df.head())
     
     # Tạo thư mục lưu metadata 
-    output_dir = "../../data/metadata"
+    output_dir = "data/metadata"
     os.makedirs(output_dir, exist_ok=True)
 
     df.to_csv(

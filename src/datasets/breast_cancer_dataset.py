@@ -45,7 +45,7 @@ class BreastCancerDataset(Dataset):
 if __name__ == "__main__":
     import torchvision.transforms as transforms
 
-    CSV_PATH = "../../data/metadata/idc_metadata.csv"
+    CSV_PATH = "data/metadata/idc_metadata.csv"
 
     test_transform = transforms.Compose([
         transforms.ToTensor(),
