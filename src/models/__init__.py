@@ -1,4 +1,4 @@
 from .unet import UNET
-#from .attention_unet import AttentionUNet
+from .attention_unet import AttentionUNET
 
-__all__ = ["UNET", ""]
+__all__ = ["UNET", "AttentionUNET"]
