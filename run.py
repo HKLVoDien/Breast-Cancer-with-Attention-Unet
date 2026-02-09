@@ -39,7 +39,7 @@ TRAIN_CSV = "data/metadata/train.csv"
 VAL_CSV   = "data/metadata/val.csv"
 BATCH_SIZE = 32
 LR = 1e-4
-EPOCHS = 10
+EPOCHS = 20
 # DataLoader parameters
 TRAIN_SHUFFLE = True
 VAL_SHUFFLE = False
@@ -180,12 +180,14 @@ def main(model_name: str):
 
 if __name__ == "__main__":
     args = parse_args()
-    #Nếu cần xây dựng lại metadata thì thực hiện 
+
     if args.build_data:
         print("[INFO] Building metadata CSV...")
         build_metadata_csv()
         split_main()
         print("[INFO] Metadata CSV built successfully.")
+        exit(0)   # ⬅ DÒNG QUAN TRỌNG
+    #Chọn mô hình để huấn luyện: --model "attention_unet, unet, resnet"
     print(f"[INFO] Training model: {args.model}")
     print("[INFO] Starting training...")
     main(args.model)
