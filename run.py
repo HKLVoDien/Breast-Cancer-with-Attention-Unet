@@ -180,10 +180,11 @@ def main(model_name: str):
 
 if __name__ == "__main__":
     args = parse_args()
-
+    data_root="data/IDC_regular_ps50_idx5"
+    output_csv="data/metadata/idc_metadata.csv"
     if args.build_data:
         print("[INFO] Building metadata CSV...")
-        build_metadata_csv()
+        build_metadata_csv(data_root, output_csv)
         split_main()
         print("[INFO] Metadata CSV built successfully.")
         exit(0)   # ⬅ DÒNG QUAN TRỌNG

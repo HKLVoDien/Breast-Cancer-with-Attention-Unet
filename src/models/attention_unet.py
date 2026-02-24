@@ -99,12 +99,23 @@ class AttentionUNET(nn.Module):
             self.ups.append(DoubleConv(feature*2, feature))
 
         self.bottleneck = DoubleConv(features[-1], features[-1]*2)
-        # cho segmentation
-        #self.final_conv = nn.Conv2d(features[0], out_channels, kernel_size=1) 
-        
+        # Dropout cho bottleneck
+        self.dropout = nn.Dropout(0.5)
         # cho binary classification
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.classifier = nn.Linear(features[0], 1)
+        self.classifier = nn.Sequential(
+            nn.Linear(features[0], 128),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(128),
+            nn.Dropout(0.5),
+
+            nn.Linear(128, 64),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(64),
+            nn.Dropout(0.5),
+
+            nn.Linear(64, 1)
+        )
         
     def forward(self, x):
         skip_connections = []
@@ -115,6 +126,7 @@ class AttentionUNET(nn.Module):
             x = self.pool(x)
 
         x = self.bottleneck(x)
+        x = self.dropout(x)
         skip_connections = skip_connections[::-1]
 
         for idx in range(0, len(self.ups), 2):

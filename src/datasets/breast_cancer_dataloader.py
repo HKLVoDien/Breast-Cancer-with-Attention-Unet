@@ -11,7 +11,7 @@ def get_transforms(split):
         return transforms.Compose([
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),
-            transforms.Resize((48, 48)),
+            transforms.Resize((50, 50)),
             transforms.ToTensor(),
             transforms.Normalize(
                 mean=[0.485, 0.456, 0.406],
@@ -21,7 +21,7 @@ def get_transforms(split):
     else:  # val, test
         return transforms.Compose([
             transforms.ToTensor(),
-            transforms.Resize((48, 48)),
+            transforms.Resize((50, 50)),
             transforms.Normalize(
                 mean=[0.485, 0.456, 0.406],
                 std=[0.229, 0.224, 0.225]
