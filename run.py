@@ -33,6 +33,27 @@ def parse_args():
     )
     return parser.parse_args()
 
+class EarlyStopping:
+    def __init__(self, patience=5, min_delta=0.001, mode='max'):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.mode = mode
+        self.best_score = None
+        self.early_stop = False
+
+    def __call__(self, score):
+        if self.best_score is None:
+            self.best_score = score
+        elif (self.mode == 'max' and score < self.best_score + self.min_delta) or \
+             (self.mode == 'min' and score > self.best_score - self.min_delta):
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            self.best_score = score
+            self.counter = 0
+
 # ===== CONFIG =====
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 TRAIN_CSV = "data/metadata/train.csv"
@@ -101,46 +122,42 @@ def main(model_name: str):
         with open(LOG_PATH, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(
-                ["epoch", "train_loss", "val_loss", "epoch_time"]
+                ["epoch", "train_loss", "val_loss", "F1_score"]
             )   
-    best_val_loss = float("inf")
+    # Sửa lại phần vòng lặp huấn luyện trong main()
+    best_val_f1 = 0.0  # Thay vì best_val_loss = float('inf')
+    early_stopping = EarlyStopping(patience=5, mode='max') # mode='max' vì F1 càng cao càng tốt
     training_start_time = time.time()
     # ===== Training loop =====
     for epoch in range(EPOCHS):
         epoch_start_time = time.time()
         train_loss = trainer.train_one_epoch(train_loader)
         val_loss = trainer.evaluate(val_loader)
-        epoch_time = time.time() - epoch_start_time
         total_time = time.time() - training_start_time
-        print(
-            f"[{model_name}] "
-            f"Epoch {epoch+1} | "
-            f"Train: {train_loss:.4f} | "
-            f"Val: {val_loss:.4f} | "
-            f"Time: {epoch_time:.2f}s"
-        )
+        
+        # Tính toán luôn các chỉ số (metrics) trên tập Val sau mỗi epoch
+        val_metrics = evaluate_metrics(model, val_loader, DEVICE)
+        val_f1 = val_metrics["f1"]
+        val_recall = val_metrics["recall"]
+        print(f"Epoch {epoch+1} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val F1: {val_f1:.4f} | Val Recall: {val_recall:.4f}")
 
         # ===== CSV log =====
         with open(LOG_PATH, "a", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(
-                [epoch + 1, train_loss, val_loss, epoch_time]
+                [epoch + 1, train_loss, val_loss, val_f1]
             )
-
-        # ===== best checkpoint  =====
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            torch.save(
-                {
+        
+        # ===== BEST CHECKPOINT DỰA TRÊN F1-SCORE =====
+        if val_f1 > best_val_f1:
+                best_val_f1 = val_f1
+                torch.save({
                     "epoch": epoch + 1,
-                    "model": model_name,
                     "model_state_dict": model.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "val_loss": val_loss,
-                },
-                BEST_MODEL_PATH
-            )
-
+                    "val_f1": val_f1,
+                    "val_recall": val_recall
+                }, BEST_MODEL_PATH)
+                print(f"[INFO] New best model saved with F1: {val_f1:.4f} at epoch {epoch+1}")
         # ===== last checkpoint  =====
         torch.save(
             {
@@ -151,6 +168,11 @@ def main(model_name: str):
             },
             LAST_MODEL_PATH
         )
+        # ===== EARLY STOPPING DỰA TRÊN F1-SCORE =====
+        early_stopping(val_f1)
+        if early_stopping.early_stop:
+            print(f"[INFO] Early stopping triggered at epoch {epoch+1}.")
+            break
     print(
         f"[INFO] Training completed in {total_time/60:.2f} minutes."
     )
@@ -168,6 +190,7 @@ def main(model_name: str):
     print("[INFO] Evaluation results:")
     for k, v in metrics.items():
         print(f"{k}: {v:.4f}")
+        
     # ===== Save metrics to JSON =====
     METRICS_PATH = os.path.join(RESULTS_DIR, "metrics.json")
     metrics_to_save = {
@@ -183,8 +206,6 @@ def main(model_name: str):
 
     print(f"[INFO] Metrics saved to {METRICS_PATH}")
 
-
-
 if __name__ == "__main__":
     args = parse_args()
     data_root="data/IDC_regular_ps50_idx5"
@@ -194,7 +215,8 @@ if __name__ == "__main__":
         build_metadata_csv(data_root, output_csv)
         split_main()
         print("[INFO] Metadata CSV built successfully.")
-        exit(0)   # ⬅ DÒNG QUAN TRỌNG
+        exit(0)
+        
     #Chọn mô hình để huấn luyện: --model "attention_unet, unet, resnet"
     print(f"[INFO] Training model: {args.model}")
     print("[INFO] Starting training...")
