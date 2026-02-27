@@ -66,7 +66,7 @@ class AttentionGate(nn.Module):
 
 class AttentionUNET(nn.Module):
     def __init__(
-            self, in_channels=3, features=[32, 64, 128],
+            self, in_channels=3, features=[64, 128 ,256],
     ):
         super(AttentionUNET, self).__init__()
         self.ups = nn.ModuleList()

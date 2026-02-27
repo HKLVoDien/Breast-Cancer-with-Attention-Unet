@@ -15,7 +15,7 @@ from src.models.build_models import build_model
 from src.training.train import Train_model
 from src.training.evaluation_metrics import evaluate_metrics
 from src.datasets.breast_cancer_dataloader import create_dataloader
-
+import pandas as pd
 def parse_args():
     parser = argparse.ArgumentParser()
 
@@ -45,7 +45,7 @@ TRAIN_SHUFFLE = True
 VAL_SHUFFLE = False
 TEST_SHUFFLE = False
 TRAIN_DROP_LAST = True
-VAL_DROP_LAST = True
+VAL_DROP_LAST = False
 # ==================
 def load_best_model(model, ckpt_path, device):
     checkpoint = torch.load(ckpt_path, map_location=device)
@@ -75,9 +75,16 @@ def main(model_name: str):
         name=model_name,
         in_channels=3
     ).to(DEVICE)
-
+    # Tính pos_weight cho BCEWithLogitsLoss
+    train_df = pd.read_csv(TRAIN_CSV)
+    num_pos = (train_df["target"] == 1).sum()
+    num_neg = (train_df["target"] == 0).sum()
+    pos_weight_value = num_neg / num_pos
+    pos_weight = torch.tensor([pos_weight_value]).to(DEVICE)
+    print(f"[INFO] Using pos_weight = {pos_weight_value:.4f}")
+    
     # ===== Loss & Optimizer =====
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = Adam(model.parameters(), lr=LR)
     trainer = Train_model(model, optimizer, criterion, DEVICE)
 
