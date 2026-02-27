@@ -31,6 +31,8 @@ def parse_args():
         choices=["unet", "attention_unet", "resnet"],
         help="Model to train"
     )
+    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
+    parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
     return parser.parse_args()
 
 class EarlyStopping:
@@ -54,19 +56,7 @@ class EarlyStopping:
             self.best_score = score
             self.counter = 0
 
-# ===== CONFIG =====
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-TRAIN_CSV = "data/metadata/train.csv"
-VAL_CSV   = "data/metadata/val.csv"
-BATCH_SIZE = 32
-LR = 1e-4
-EPOCHS = 20
-# DataLoader parameters
-TRAIN_SHUFFLE = True
-VAL_SHUFFLE = False
-TEST_SHUFFLE = False
-TRAIN_DROP_LAST = True
-VAL_DROP_LAST = False
+
 # ==================
 def load_best_model(model, ckpt_path, device):
     checkpoint = torch.load(ckpt_path, map_location=device)
@@ -74,6 +64,22 @@ def load_best_model(model, ckpt_path, device):
     return model
 # ==================
 def main(model_name: str):
+    # ===== Results directories & log file =====
+    exp_name = f"{args.model}_bs{BATCH_SIZE}_lr{LR}"
+    RESULTS_DIR = os.path.join("results", exp_name)
+    LOG_DIR = os.path.join(RESULTS_DIR, "logs")
+    CKPT_DIR = os.path.join(RESULTS_DIR, "checkpoints")
+    os.makedirs(LOG_DIR, exist_ok=True)
+    os.makedirs(CKPT_DIR, exist_ok=True)
+    LOG_PATH = os.path.join(LOG_DIR, "train_log.csv")
+    BEST_MODEL_PATH = os.path.join(CKPT_DIR, "best.pth")
+    LAST_MODEL_PATH = os.path.join(CKPT_DIR, "last.pth")
+    if not os.path.exists(LOG_PATH):
+        with open(LOG_PATH, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                ["epoch", "train_loss", "val_loss", "F1_score"]
+            ) 
     # ===== DataLoader =====
     train_loader = create_dataloader(
         dataframe_csv_path=TRAIN_CSV,
@@ -82,7 +88,6 @@ def main(model_name: str):
         shuffle=TRAIN_SHUFFLE,
         drop_last=TRAIN_DROP_LAST
     )
-
     val_loader = create_dataloader(
         dataframe_csv_path=VAL_CSV,
         split="val",
@@ -90,7 +95,13 @@ def main(model_name: str):
         shuffle=VAL_SHUFFLE,
         drop_last=VAL_DROP_LAST
     )
-
+    test_loader = create_dataloader(
+        dataframe_csv_path=TEST_CSV,  # Sử dụng test.csv làm test để đánh giá cuối cùng
+        split="test",
+        batch_size=BATCH_SIZE,
+        shuffle=TEST_SHUFFLE,
+        drop_last=TEST_DROP_LAST
+    )
     # ===== Model =====
     model = build_model(
         name=model_name,
@@ -109,28 +120,14 @@ def main(model_name: str):
     optimizer = Adam(model.parameters(), lr=LR)
     trainer = Train_model(model, optimizer, criterion, DEVICE)
 
-    # ===== Results directories & log file =====
-    RESULTS_DIR = os.path.join("results", model_name)
-    LOG_DIR = os.path.join(RESULTS_DIR, "logs")
-    CKPT_DIR = os.path.join(RESULTS_DIR, "checkpoints")
-    os.makedirs(LOG_DIR, exist_ok=True)
-    os.makedirs(CKPT_DIR, exist_ok=True)
-    LOG_PATH = os.path.join(LOG_DIR, "train_log.csv")
-    BEST_MODEL_PATH = os.path.join(CKPT_DIR, "best.pth")
-    LAST_MODEL_PATH = os.path.join(CKPT_DIR, "last.pth")
-    if not os.path.exists(LOG_PATH):
-        with open(LOG_PATH, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(
-                ["epoch", "train_loss", "val_loss", "F1_score"]
-            )   
-    # Sửa lại phần vòng lặp huấn luyện trong main()
-    best_val_f1 = 0.0  # Thay vì best_val_loss = float('inf')
+      
+    # ===== setup early stopping =====
+    best_val_f1 = 0.0 
+    best_epoch_num = 1
     early_stopping = EarlyStopping(patience=5, mode='max') # mode='max' vì F1 càng cao càng tốt
     training_start_time = time.time()
     # ===== Training loop =====
     for epoch in range(EPOCHS):
-        epoch_start_time = time.time()
         train_loss = trainer.train_one_epoch(train_loader)
         val_loss = trainer.evaluate(val_loader)
         total_time = time.time() - training_start_time
@@ -151,13 +148,14 @@ def main(model_name: str):
         # ===== BEST CHECKPOINT DỰA TRÊN F1-SCORE =====
         if val_f1 > best_val_f1:
                 best_val_f1 = val_f1
+                best_epoch_num = epoch + 1 # Lưu epoch tốt nhất
                 torch.save({
-                    "epoch": epoch + 1,
+                    "epoch":  best_epoch_num,
                     "model_state_dict": model.state_dict(),
                     "val_f1": val_f1,
                     "val_recall": val_recall
                 }, BEST_MODEL_PATH)
-                print(f"[INFO] New best model saved with F1: {val_f1:.4f} at epoch {epoch+1}")
+                print(f"[INFO] New best model saved with F1: {val_f1:.4f} at epoch {best_epoch_num}")
         # ===== last checkpoint  =====
         torch.save(
             {
@@ -183,7 +181,7 @@ def main(model_name: str):
 
     metrics = evaluate_metrics(
         model=model,
-        dataloader=val_loader,
+        dataloader=test_loader,
         device=DEVICE
     )
 
@@ -195,6 +193,10 @@ def main(model_name: str):
     METRICS_PATH = os.path.join(RESULTS_DIR, "metrics.json")
     metrics_to_save = {
         "model": model_name,
+        "batch_size": BATCH_SIZE,
+        "learning_rate": LR,
+        "pos_weight": float(pos_weight_value), 
+        "best_epoch": best_epoch_num,
         "accuracy": metrics["accuracy"],
         "precision": metrics["precision"],
         "recall": metrics["recall"],
@@ -210,6 +212,21 @@ if __name__ == "__main__":
     args = parse_args()
     data_root="data/IDC_regular_ps50_idx5"
     output_csv="data/metadata/idc_metadata.csv"
+    # ===== CONFIG =====
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    TRAIN_CSV = "data/metadata/train.csv"
+    VAL_CSV   = "data/metadata/val.csv"
+    TEST_CSV  = "data/metadata/test.csv"
+    BATCH_SIZE = args.batch_size
+    LR = args.lr
+    EPOCHS = 30
+    # DataLoader parameters
+    TRAIN_SHUFFLE = True
+    VAL_SHUFFLE = False
+    TEST_SHUFFLE = False
+    TRAIN_DROP_LAST = True
+    VAL_DROP_LAST = False
+    TEST_DROP_LAST = False
     if args.build_data:
         print("[INFO] Building metadata CSV...")
         build_metadata_csv(data_root, output_csv)
