@@ -35,7 +35,7 @@ def create_dataloader(
     batch_size,
     shuffle,
     drop_last,
-    num_workers=4,
+    num_workers=2,
     pin_memory=True
 ):
     """

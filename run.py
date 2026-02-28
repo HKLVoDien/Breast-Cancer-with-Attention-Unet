@@ -38,7 +38,7 @@ def parse_args():
     parser.add_argument(
         "--model",
         type=str,
-        default="unet",
+        default="attention_unet",
         choices=["unet", "attention_unet", "resnet"],
         help="Model to train"
     )
@@ -179,7 +179,7 @@ if __name__ == "__main__":
         find_lr(model_name=args.model)
         print("[INFO] Learning rate finder completed.")
         exit(0)
-    #Chọn mô hình để huấn luyện: --model "attention_unet, unet, resnet"
+    #Chọn mô hình để huấn luyện: --model "attention_unet, unet, resnet"  --lr 1e-4 --max-lr 1e-3 --batch-size 32
     print(f"[INFO] Training model: {args.model}")
     print("[INFO] Starting training...")
     main(args)

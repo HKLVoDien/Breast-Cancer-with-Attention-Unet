@@ -59,7 +59,7 @@ class Train_model:
             """
             best_val_f1 = 0.0 
             best_epoch_num = 1
-            early_stopping = EarlyStopping(patience=patience, mode='max')
+            early_stopping = EarlyStopping(patience=patience, mode='min') # Dừng khi val_loss không giảm
             training_start_time = time.time()
 
             for epoch in range(epochs):
@@ -85,8 +85,9 @@ class Train_model:
                     torch.save({
                         "epoch":  best_epoch_num,
                         "model_state_dict": self.model.state_dict(),
-                        "val_f1": val_f1,
-                        "val_recall": val_recall
+                        "val_loss": float(val_loss),
+                        "val_f1": float(val_f1),
+                        "val_recall": float(val_recall)
                     }, best_model_path)
                     print(f"[INFO] New best model saved with F1: {val_f1:.4f} at epoch {best_epoch_num}")
                 
