@@ -1,67 +1,86 @@
+# Mission: Tìm kiếm khoảng Learning Rate tối ưu (LR Range Test).
+import os
 import torch
 import torch.nn as nn
 from torch.optim import Adam
-import pandas as pd
-from tqdm import tqdm
+import matplotlib.pyplot as plt
 
-# Import từ project hiện tại
-from src.datasets.breast_cancer_dataloader import create_dataloader
+# Import thêm TrainDataLoaderIter từ thư viện
+from torch_lr_finder import LRFinder, TrainDataLoaderIter
+
+from configs.default_configs import Config
 from src.models.build_models import build_model
+from src.datasets.breast_cancer_dataloader import create_dataloader
+from src.datasets.breast_cancer_dataframe import get_pos_weight
 
-def get_lr_search_scheduler(optimizer, min_lr, max_lr, max_iterations):
-    return torch.optim.lr_scheduler.CyclicLR(
-        optimizer=optimizer, base_lr=min_lr, max_lr=max_lr, 
-        step_size_up=max_iterations, step_size_down=max_iterations, 
-        mode="triangular", cycle_momentum=False
-    )
+# ==========================================================
+# 1. WRAPPER CHO DATALOADER (Khắc phục lỗi class 'dict')
+# ==========================================================
+class CustomTrainIter(TrainDataLoaderIter):
+    def inputs_labels_from_batch(self, batch_data):
+        # Trích xuất "image" và "label" từ dictionary
+        # Đồng thời ép label sang float() giống trong file train.py
+        return batch_data["image"], batch_data["label"].float()
 
-def find_learning_rate(model_name="attention_unet", batch_size=32, start_lr=1e-7, end_lr=0.1):
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    TRAIN_CSV = "data/metadata/train.csv"
-
-    print(f"[INFO] Tìm LR cho {model_name}...")
-    train_loader = create_dataloader(
-        dataframe_csv_path=TRAIN_CSV, split="train", 
-        batch_size=batch_size, shuffle=True, drop_last=True
-    )
-
-    model = build_model(name=model_name, in_channels=3).to(DEVICE)
-
-    # Tính pos_weight
-    train_df = pd.read_csv(TRAIN_CSV)
-    num_pos = (train_df["target"] == 1).sum()
-    num_neg = (train_df["target"] == 0).sum()
-    pos_weight = torch.tensor([num_neg / num_pos]).to(DEVICE)
-    
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-    optimizer = Adam(model.parameters(), lr=start_lr)
-    
-    max_iterations = len(train_loader)
-    scheduler = get_lr_search_scheduler(optimizer, start_lr, end_lr, max_iterations)
-
-    lrs = []
-    losses = []
-
-    model.train()
-    for batch in tqdm(train_loader, leave=False):
-        images = batch["image"].to(DEVICE)
-        labels = batch["label"].float().to(DEVICE)
-
-        optimizer.zero_grad()
-        outputs = model(images).squeeze(1)
-        loss = criterion(outputs, labels)
+# ==========================================================
+# 2. WRAPPER CHO MODEL (Giúp output khớp shape với label)
+# ==========================================================
+class ModelWrapper(nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
         
-        loss.backward()
-        optimizer.step()
+    def forward(self, x):
+        # Hàm squeeze(1) giống hệt dòng 27 trong file train.py của bạn
+        return self.model(x).squeeze(1)
+# ==========================================================
 
-        lrs.append(scheduler.get_last_lr()[0])
-        losses.append(loss.item())
-        scheduler.step()
+def find_lr(model_name="attention_unet"):
+    print("[INFO] Đang chuẩn bị Dataloader...")
+    train_loader = create_dataloader(
+        dataframe_csv_path=Config.TRAIN_CSV,
+        split="train",
+        batch_size=Config.BATCH_SIZE,
+        shuffle=True,
+        drop_last=True
+    )
 
-    # Chỉ lưu dữ liệu thô ra file CSV
-    csv_path = "lr_finder_results.csv"
-    pd.DataFrame({"lr": lrs, "loss": losses}).to_csv(csv_path, index=False)
-    print(f"[INFO] Đã lưu kết quả tại {csv_path}")
+    print("[INFO] Đang khởi tạo Model và Optimizer...")
+    # Khởi tạo model gốc
+    base_model = build_model(name=model_name, in_channels=3).to(Config.DEVICE)
+    
+    # Bọc model gốc bằng ModelWrapper
+    model = ModelWrapper(base_model)
+    
+    pos_weight, _ = get_pos_weight(Config.TRAIN_CSV, Config.DEVICE)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    
+    # Khởi tạo Adam với LR cực nhỏ làm điểm bắt đầu
+    optimizer = Adam(model.parameters(), lr=1e-7, weight_decay=1e-4)
+
+    print("[INFO] Bắt đầu tìm kiếm Learning Rate...")
+    lr_finder = LRFinder(model, optimizer, criterion, device=Config.DEVICE)
+    
+    # Bọc train_loader bằng CustomTrainIter
+    custom_train_loader = CustomTrainIter(train_loader)
+    
+    # Truyền custom_train_loader vào range_test
+    lr_finder.range_test(custom_train_loader, end_lr=1.0, num_iter=100, step_mode="exp")
+
+    # Lưu biểu đồ ra file ảnh
+    os.makedirs(Config.RESULTS_DIR, exist_ok=True)
+    plot_path = os.path.join(Config.RESULTS_DIR, f"lr_finder_plot_{model_name}.png")
+    
+    fig, ax = plt.subplots()
+    lr_finder.plot(ax=ax) 
+    fig.savefig(plot_path)
+    print(f"[HOÀN THÀNH] Đã lưu biểu đồ tại: {plot_path}")
+    
+    print("[INFO] Đang hiển thị biểu đồ. Hãy đóng cửa sổ biểu đồ để kết thúc chương trình.")
+    plt.show() 
+
+    # Reset model về trạng thái ban đầu để tránh ảnh hưởng bộ nhớ
+    lr_finder.reset()
 
 if __name__ == "__main__":
-    find_learning_rate(model_name="attention_unet", batch_size=32)
+    find_lr()

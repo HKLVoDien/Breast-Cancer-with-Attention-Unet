@@ -9,12 +9,12 @@ from src.utils.callbacks import EarlyStopping
 from src.training.evaluation_metrics import evaluate_metrics
 
 class Train_model:
-    def __init__(self, model, optimizer, criterion, device):
+    def __init__(self, model, optimizer, criterion, device, scheduler=None):
         self.model = model
         self.optimizer = optimizer
         self.criterion = criterion
         self.device = device
-
+        self.scheduler = scheduler
     def train_one_epoch(self, loader):
         self.model.train()
         running_loss = 0.0
@@ -29,6 +29,11 @@ class Train_model:
 
             loss.backward()
             self.optimizer.step()
+            
+        # --- DÒNG NÀY CHO CYCLIC LR ---
+            if self.scheduler is not None:
+                self.scheduler.step()
+        # ------------------------------
             running_loss += loss.item()
 
         return running_loss / len(loader)
@@ -94,7 +99,7 @@ class Train_model:
                 }, last_model_path)
                 
                 # Kiểm tra Early Stopping
-                early_stopping(val_f1)
+                early_stopping(val_loss)
                 if early_stopping.early_stop:
                     print(f"[INFO] Early stopping triggered at epoch {epoch+1}.")
                     break

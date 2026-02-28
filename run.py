@@ -11,6 +11,7 @@ import json
 import argparse
 # Các module dữ liệu
 from configs.default_configs import Config
+from src.training.find_lr import find_lr 
 from src.datasets.breast_cancer_dataframe import build_metadata_csv, get_pos_weight
 from src.datasets.split_dataset import main as split_main
 from src.datasets.breast_cancer_dataloader import create_dataloader
@@ -30,13 +31,19 @@ def parse_args():
         help="Rebuild metadata CSV before training"
     )
     parser.add_argument(
+        "--find-lr",
+        action="store_true",
+        help="Run learning rate finder before training"
+    )
+    parser.add_argument(
         "--model",
         type=str,
         default="unet",
         choices=["unet", "attention_unet", "resnet"],
         help="Model to train"
     )
-    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
+    parser.add_argument("--max-lr", type=float, default=1e-3, help="Maximum learning rate")
+    parser.add_argument("--lr", type=float, default=1e-4, help="Base learning rate for CyclicLR")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
     return parser.parse_args()
 
@@ -96,11 +103,22 @@ def main(args):
     # ===== Loss & Optimizer =====
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = Adam(model.parameters(), lr=Config.LR)
-    trainer = Train_model(model, optimizer, criterion, Config.DEVICE)
-
-      
-
-    # ===== Training loop =====
+    # Đặt lr ban đầu bằng base_lr
+    base_lr = args.lr
+    max_lr = args.max_lr
+    # Tính số bước (steps) cho nửa chu kỳ (thường bằng 2-8 lần số batch trong 1 epoch)
+    steps_per_epoch = len(train_loader)
+    step_size_up = 2 * steps_per_epoch
+    scheduler = torch.optim.lr_scheduler.CyclicLR(
+        optimizer, 
+        base_lr=base_lr, 
+        max_lr=max_lr, 
+        step_size_up=step_size_up,
+        mode="triangular", # Mô hình lượn sóng hình tam giác giống tác giả notebook
+        cycle_momentum=False # Vì Adam không dùng tham số momentum như SGD
+    ) 
+    # ===== Trainer =====
+    trainer = Train_model(model, optimizer, criterion, Config.DEVICE, scheduler=scheduler)
     best_epoch_num = trainer.fit(
         train_loader=train_loader,
         val_loader=val_loader,
@@ -110,6 +128,7 @@ def main(args):
         best_model_path=BEST_MODEL_PATH,
         last_model_path=LAST_MODEL_PATH,
         model_name=model_name
+        
     )
     # ===== Load best model and evaluate =====
     print("[INFO] Loading best model for evaluation...")
@@ -155,7 +174,11 @@ if __name__ == "__main__":
         split_main()
         print("[INFO] Metadata CSV built successfully.")
         exit(0)
-        
+    if args.find_lr:
+        print("[INFO] Running learning rate finder...")
+        find_lr(model_name=args.model)
+        print("[INFO] Learning rate finder completed.")
+        exit(0)
     #Chọn mô hình để huấn luyện: --model "attention_unet, unet, resnet"
     print(f"[INFO] Training model: {args.model}")
     print("[INFO] Starting training...")
