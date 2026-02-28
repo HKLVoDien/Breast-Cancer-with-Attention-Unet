@@ -9,13 +9,18 @@ import os
 import csv
 import json
 import argparse
-from src.datasets.breast_cancer_dataframe import build_metadata_csv
+# Các module dữ liệu
+from configs.default_configs import Config
+from src.datasets.breast_cancer_dataframe import build_metadata_csv, get_pos_weight
 from src.datasets.split_dataset import main as split_main
+from src.datasets.breast_cancer_dataloader import create_dataloader
+# Các module mô hình và huấn luyện
 from src.models.build_models import build_model
 from src.training.train import Train_model
 from src.training.evaluation_metrics import evaluate_metrics
-from src.datasets.breast_cancer_dataloader import create_dataloader
-import pandas as pd
+from src.utils.callbacks import EarlyStopping
+from src.utils.model_utils import load_best_model
+
 def parse_args():
     parser = argparse.ArgumentParser()
 
@@ -35,38 +40,12 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
     return parser.parse_args()
 
-class EarlyStopping:
-    def __init__(self, patience=5, min_delta=0.001, mode='max'):
-        self.patience = patience
-        self.min_delta = min_delta
-        self.counter = 0
-        self.mode = mode
-        self.best_score = None
-        self.early_stop = False
-
-    def __call__(self, score):
-        if self.best_score is None:
-            self.best_score = score
-        elif (self.mode == 'max' and score < self.best_score + self.min_delta) or \
-             (self.mode == 'min' and score > self.best_score - self.min_delta):
-            self.counter += 1
-            if self.counter >= self.patience:
-                self.early_stop = True
-        else:
-            self.best_score = score
-            self.counter = 0
-
-
 # ==================
-def load_best_model(model, ckpt_path, device):
-    checkpoint = torch.load(ckpt_path, map_location=device)
-    model.load_state_dict(checkpoint["model_state_dict"])
-    return model
-# ==================
-def main(model_name: str):
+def main(args):
+    model_name = args.model
+    
     # ===== Results directories & log file =====
-    exp_name = f"{args.model}_bs{BATCH_SIZE}_lr{LR}"
-    RESULTS_DIR = os.path.join("results", exp_name)
+    RESULTS_DIR = Config.get_exp_dir(model_name)
     LOG_DIR = os.path.join(RESULTS_DIR, "logs")
     CKPT_DIR = os.path.join(RESULTS_DIR, "checkpoints")
     os.makedirs(LOG_DIR, exist_ok=True)
@@ -80,109 +59,65 @@ def main(model_name: str):
             writer.writerow(
                 ["epoch", "train_loss", "val_loss", "F1_score"]
             ) 
+   
     # ===== DataLoader =====
     train_loader = create_dataloader(
-        dataframe_csv_path=TRAIN_CSV,
+        dataframe_csv_path=Config.TRAIN_CSV,
         split="train",
-        batch_size=BATCH_SIZE,
-        shuffle=TRAIN_SHUFFLE,
-        drop_last=TRAIN_DROP_LAST
+        batch_size=Config.BATCH_SIZE,
+        shuffle=Config.TRAIN_SHUFFLE,
+        drop_last=Config.TRAIN_DROP_LAST
     )
     val_loader = create_dataloader(
-        dataframe_csv_path=VAL_CSV,
+        dataframe_csv_path=Config.VAL_CSV,
         split="val",
-        batch_size=BATCH_SIZE,
-        shuffle=VAL_SHUFFLE,
-        drop_last=VAL_DROP_LAST
+        batch_size=Config.BATCH_SIZE,
+        shuffle=Config.VAL_SHUFFLE,
+        drop_last=Config.VAL_DROP_LAST
     )
     test_loader = create_dataloader(
-        dataframe_csv_path=TEST_CSV,  # Sử dụng test.csv làm test để đánh giá cuối cùng
+        dataframe_csv_path=Config.TEST_CSV,  # Sử dụng test.csv làm test để đánh giá cuối cùng
         split="test",
-        batch_size=BATCH_SIZE,
-        shuffle=TEST_SHUFFLE,
-        drop_last=TEST_DROP_LAST
+        batch_size=Config.BATCH_SIZE,
+        shuffle=Config.TEST_SHUFFLE,
+        drop_last=Config.TEST_DROP_LAST
     )
+    
     # ===== Model =====
     model = build_model(
         name=model_name,
         in_channels=3
-    ).to(DEVICE)
-    # Tính pos_weight cho BCEWithLogitsLoss
-    train_df = pd.read_csv(TRAIN_CSV)
-    num_pos = (train_df["target"] == 1).sum()
-    num_neg = (train_df["target"] == 0).sum()
-    pos_weight_value = num_neg / num_pos
-    pos_weight = torch.tensor([pos_weight_value]).to(DEVICE)
+    ).to(Config.DEVICE)
+    
+    # ===== Pos_weight =====
+    pos_weight, pos_weight_value = get_pos_weight(Config.TRAIN_CSV, Config.DEVICE)
     print(f"[INFO] Using pos_weight = {pos_weight_value:.4f}")
     
     # ===== Loss & Optimizer =====
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-    optimizer = Adam(model.parameters(), lr=LR)
-    trainer = Train_model(model, optimizer, criterion, DEVICE)
+    optimizer = Adam(model.parameters(), lr=Config.LR)
+    trainer = Train_model(model, optimizer, criterion, Config.DEVICE)
 
       
-    # ===== setup early stopping =====
-    best_val_f1 = 0.0 
-    best_epoch_num = 1
-    early_stopping = EarlyStopping(patience=5, mode='max') # mode='max' vì F1 càng cao càng tốt
-    training_start_time = time.time()
-    # ===== Training loop =====
-    for epoch in range(EPOCHS):
-        train_loss = trainer.train_one_epoch(train_loader)
-        val_loss = trainer.evaluate(val_loader)
-        total_time = time.time() - training_start_time
-        
-        # Tính toán luôn các chỉ số (metrics) trên tập Val sau mỗi epoch
-        val_metrics = evaluate_metrics(model, val_loader, DEVICE)
-        val_f1 = val_metrics["f1"]
-        val_recall = val_metrics["recall"]
-        print(f"Epoch {epoch+1} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val F1: {val_f1:.4f} | Val Recall: {val_recall:.4f}")
 
-        # ===== CSV log =====
-        with open(LOG_PATH, "a", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(
-                [epoch + 1, train_loss, val_loss, val_f1]
-            )
-        
-        # ===== BEST CHECKPOINT DỰA TRÊN F1-SCORE =====
-        if val_f1 > best_val_f1:
-                best_val_f1 = val_f1
-                best_epoch_num = epoch + 1 # Lưu epoch tốt nhất
-                torch.save({
-                    "epoch":  best_epoch_num,
-                    "model_state_dict": model.state_dict(),
-                    "val_f1": val_f1,
-                    "val_recall": val_recall
-                }, BEST_MODEL_PATH)
-                print(f"[INFO] New best model saved with F1: {val_f1:.4f} at epoch {best_epoch_num}")
-        # ===== last checkpoint  =====
-        torch.save(
-            {
-                "epoch": epoch + 1,
-                "model": model_name,
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-            },
-            LAST_MODEL_PATH
-        )
-        # ===== EARLY STOPPING DỰA TRÊN F1-SCORE =====
-        early_stopping(val_f1)
-        if early_stopping.early_stop:
-            print(f"[INFO] Early stopping triggered at epoch {epoch+1}.")
-            break
-    print(
-        f"[INFO] Training completed in {total_time/60:.2f} minutes."
+    # ===== Training loop =====
+    best_epoch_num = trainer.fit(
+        train_loader=train_loader,
+        val_loader=val_loader,
+        epochs=Config.EPOCHS,
+        patience=5,
+        log_path=LOG_PATH,
+        best_model_path=BEST_MODEL_PATH,
+        last_model_path=LAST_MODEL_PATH,
+        model_name=model_name
     )
     # ===== Load best model and evaluate =====
     print("[INFO] Loading best model for evaluation...")
-
-    model = load_best_model(model, BEST_MODEL_PATH, DEVICE)
-
+    model = load_best_model(model, BEST_MODEL_PATH, Config.DEVICE)
     metrics = evaluate_metrics(
         model=model,
         dataloader=test_loader,
-        device=DEVICE
+        device=Config.DEVICE
     )
 
     print("[INFO] Evaluation results:")
@@ -193,8 +128,8 @@ def main(model_name: str):
     METRICS_PATH = os.path.join(RESULTS_DIR, "metrics.json")
     metrics_to_save = {
         "model": model_name,
-        "batch_size": BATCH_SIZE,
-        "learning_rate": LR,
+        "batch_size": Config.BATCH_SIZE,
+        "learning_rate": Config.LR,
         "pos_weight": float(pos_weight_value), 
         "best_epoch": best_epoch_num,
         "accuracy": metrics["accuracy"],
@@ -210,26 +145,13 @@ def main(model_name: str):
 
 if __name__ == "__main__":
     args = parse_args()
-    data_root="data/IDC_regular_ps50_idx5"
-    output_csv="data/metadata/idc_metadata.csv"
-    # ===== CONFIG =====
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    TRAIN_CSV = "data/metadata/train.csv"
-    VAL_CSV   = "data/metadata/val.csv"
-    TEST_CSV  = "data/metadata/test.csv"
-    BATCH_SIZE = args.batch_size
-    LR = args.lr
-    EPOCHS = 30
-    # DataLoader parameters
-    TRAIN_SHUFFLE = True
-    VAL_SHUFFLE = False
-    TEST_SHUFFLE = False
-    TRAIN_DROP_LAST = True
-    VAL_DROP_LAST = False
-    TEST_DROP_LAST = False
+    # 1. Cập nhật Config từ tham số Command Line (LR, BATCH_SIZE)
+    Config.update_from_args(args)
+    
+    # 2. Nếu người dùng chọn --build-data, thực hiện xây dựng metadata và chia dataset rồi thoát
     if args.build_data:
         print("[INFO] Building metadata CSV...")
-        build_metadata_csv(data_root, output_csv)
+        build_metadata_csv(Config.DATA_ROOT, Config.METADATA_CSV)
         split_main()
         print("[INFO] Metadata CSV built successfully.")
         exit(0)
@@ -237,4 +159,4 @@ if __name__ == "__main__":
     #Chọn mô hình để huấn luyện: --model "attention_unet, unet, resnet"
     print(f"[INFO] Training model: {args.model}")
     print("[INFO] Starting training...")
-    main(args.model)
+    main(args)

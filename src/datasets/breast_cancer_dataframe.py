@@ -4,6 +4,7 @@
 import os
 import pandas as pd
 import numpy as np
+import torch
 import re
 def count_images(base_path):
     folders = os.listdir(base_path)
@@ -64,6 +65,24 @@ def build_metadata_csv(
     os.makedirs(os.path.dirname(output_csv), exist_ok=True)
     df.to_csv(output_csv, index=False)
     return df
+
+def get_pos_weight(csv_path, device):
+    """
+    Hàm đọc file CSV và tính toán pos_weight cho hàm loss BCEWithLogitsLoss
+    nhằm giải quyết bài toán mất cân bằng dữ liệu.
+    """
+    df = pd.read_csv(csv_path)
+    
+    # Đếm số lượng mẫu positive (1) và negative (0)
+    num_pos = (df["target"] == 1).sum()
+    num_neg = (df["target"] == 0).sum()
+    
+    # Tính tỷ lệ
+    pos_weight_value = num_neg / num_pos
+    pos_weight = torch.tensor([pos_weight_value]).to(device)
+    
+    return pos_weight, float(pos_weight_value)
+
 
 if __name__ == "__main__":
     base_path = "data/IDC_regular_ps50_idx5"
