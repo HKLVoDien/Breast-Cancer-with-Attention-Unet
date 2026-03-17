@@ -24,7 +24,7 @@ class Config:
     # Training Hyperparameters
     EPOCHS = 30
     BATCH_SIZE = 32
-    MIN_LR = 1e-5 # Cập nhật sau khi dùng LR Finder
+    MIN_LR = 1e-4 # Cập nhật sau khi dùng LR Finder
     MAX_LR = 1e-3 # Cập nhật sau khi dùng LR Finder
 
     # Results paths

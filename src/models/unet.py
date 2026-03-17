@@ -49,7 +49,19 @@ class UNET(nn.Module):
         
         # cho binary classification
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.classifier = nn.Linear(features[0], 1)
+        self.classifier = nn.Sequential(
+            nn.Linear(features[0], 128),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(128),
+            nn.Dropout(0.5),
+
+            nn.Linear(128, 64),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(64),
+            nn.Dropout(0.5),
+
+            nn.Linear(64, 1)
+        )
         
     def forward(self, x):
         skip_connections = []

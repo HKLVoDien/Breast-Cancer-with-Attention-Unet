@@ -100,10 +100,10 @@ class Train_model:
                 }, last_model_path)
                 
                 # Kiểm tra Early Stopping
-                early_stopping(val_loss)
-                if early_stopping.early_stop:
-                    print(f"[INFO] Early stopping triggered at epoch {epoch+1}.")
-                    break
+                # early_stopping(val_loss)
+                # if early_stopping.early_stop:
+                #     print(f"[INFO] Early stopping triggered at epoch {epoch+1}.")
+                #     break
                     
             total_time = time.time() - training_start_time
             print(f"[INFO] Training completed in {total_time/60:.2f} minutes.")

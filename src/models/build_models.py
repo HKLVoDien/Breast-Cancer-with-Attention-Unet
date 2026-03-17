@@ -5,6 +5,7 @@
 
 from src.models.unet import UNET
 from src.models.attention_unet import AttentionUNET
+from src.models.resnet import ResNet
 import torch
 def build_model(name: str, **kwargs):
     name = name.lower()
@@ -14,7 +15,8 @@ def build_model(name: str, **kwargs):
 
     elif name == "attention_unet":
         return AttentionUNET(**kwargs)
-
+    elif name == "resnet":
+        return ResNet(pretrained=True)
     else:
         raise ValueError(
             f"Unknown model '{name}'. "
@@ -24,7 +26,7 @@ def build_model(name: str, **kwargs):
 if __name__ == "__main__":
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     #Test xây dựng mô hình
-    model_names = ["unet", "attention_unet"]
+    model_names = ["unet", "attention_unet", "resnet"]
     for name in model_names:
         model = build_model(name, in_channels=3).to(DEVICE)
         x = torch.randn(2, 3, 224, 224).to(DEVICE)
