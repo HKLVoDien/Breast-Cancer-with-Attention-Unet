@@ -7,7 +7,7 @@ import os
 class Config:
     # System
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    
+    SEED = 42
     # Data paths
     DATA_ROOT = "data/IDC_regular_ps50_idx5"
     TRAIN_CSV = "data/metadata/train.csv"
