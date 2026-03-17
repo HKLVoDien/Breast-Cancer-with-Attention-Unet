@@ -31,8 +31,8 @@ def evaluate_metrics(model, dataloader, device):
             all_probs.append(probs.cpu())
 
     # ===== concat all batches =====
-    y_pred = torch.cat(all_preds).numpy()
-    y_true = torch.cat(all_labels).numpy()
+    y_pred = torch.cat(all_preds).numpy().flatten()
+    y_true = torch.cat(all_labels).numpy().flatten()
     y_probs = torch.cat(all_probs).numpy().flatten() # Dùng cho ROC-AUC
 
     # ===== compute metrics =====

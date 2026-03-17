@@ -18,7 +18,7 @@ from src.training.evaluation_metrics import evaluate_metrics
 from src.utils.model_utils import load_best_model
 # Các module khác
 from src.utils.callbacks import EarlyStopping
-from src.ultils.seed.py import set_seed
+from src.utils.seed import set_seed
 def parse_args():
     parser = argparse.ArgumentParser()
 
@@ -36,7 +36,7 @@ def parse_args():
         "--model",
         type=str,
         default="attention_unet",
-        choices=["unet", "attention_unet", "resnet"],
+        choices=["unet", "attention_unet", "resnet", "monai_attention_unet"],
         help="Model to train"
     )
     parser.add_argument("--max-lr", type=float, default=1e-3, help="Maximum learning rate")
