@@ -6,6 +6,7 @@
 from src.models.unet import UNET
 from src.models.attention_unet import AttentionUNET
 from src.models.resnet import ResNet
+from src.models.monai_attention_unet import MonaiAttentionUNet
 import torch
 def build_model(name: str, **kwargs):
     name = name.lower()
@@ -17,10 +18,13 @@ def build_model(name: str, **kwargs):
         return AttentionUNET(**kwargs)
     elif name == "resnet":
         return ResNet(pretrained=True)
+    elif name == "monai_attention_unet":
+        return MonaiAttentionUNet(**kwargs)
+
     else:
         raise ValueError(
             f"Unknown model '{name}'. "
-            "Available: unet | attention_unet | resnet"
+            "Available: unet | attention_unet | resnet | monai_attention_unet"
         )
 
 if __name__ == "__main__":
