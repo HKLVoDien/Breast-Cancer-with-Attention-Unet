@@ -69,14 +69,22 @@ class Train_model:
                 # Tính toán chỉ số trên tập Val
                 val_metrics = evaluate_metrics(self.model, val_loader, self.device)
                 val_f1 = val_metrics["f1"]
-                val_recall = val_metrics["recall"]
-                
-                print(f"Epoch {epoch+1} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val F1: {val_f1:.4f} | Val Recall: {val_recall:.4f}")
+                val_auc = val_metrics["auc"]
+                print(f"Epoch {epoch+1} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val F1: {val_f1:.4f} | Val AUC: {val_auc:.4f}")
 
+                # === WANDB LOGGING MLOPS ===
+                wandb.log({
+                    "epoch": epoch + 1,
+                    "Train Loss": train_loss,
+                    "Val Loss": val_loss,
+                    "Val F1": val_f1,
+                    "Val AUC": val_auc,
+                    "Learning Rate": self.optimizer.param_groups[0]['lr']
+                })
                 # Ghi log CSV
                 with open(log_path, "a", newline="") as f:
                     writer = csv.writer(f)
-                    writer.writerow([epoch + 1, train_loss, val_loss, val_f1])
+                    writer.writerow([epoch + 1, train_loss, val_loss, val_f1, val_auc])
                 
                 # Lưu Best Checkpoint
                 if val_f1 > best_val_f1:
@@ -87,7 +95,7 @@ class Train_model:
                         "model_state_dict": self.model.state_dict(),
                         "val_loss": float(val_loss),
                         "val_f1": float(val_f1),
-                        "val_recall": float(val_recall)
+                        "val_auc": float(val_auc)
                     }, best_model_path)
                     print(f"[INFO] New best model saved with F1: {val_f1:.4f} at epoch {best_epoch_num}")
                 
@@ -100,10 +108,10 @@ class Train_model:
                 }, last_model_path)
                 
                 # Kiểm tra Early Stopping
-                # early_stopping(val_loss)
-                # if early_stopping.early_stop:
-                #     print(f"[INFO] Early stopping triggered at epoch {epoch+1}.")
-                #     break
+                early_stopping(val_loss)
+                if early_stopping.early_stop:
+                    print(f"[INFO] Early stopping triggered at epoch {epoch+1}.")
+                    break
                     
             total_time = time.time() - training_start_time
             print(f"[INFO] Training completed in {total_time/60:.2f} minutes.")

@@ -4,11 +4,7 @@
 import torch
 import torch.nn as nn
 from torch.optim import Adam
-import time
-import os
-import csv
-import json
-import argparse
+import os, csv, json, argparse, wandb
 # Các module dữ liệu
 from configs.default_configs import Config
 from src.training.find_lr import find_lr 
@@ -19,9 +15,10 @@ from src.datasets.breast_cancer_dataloader import create_dataloader
 from src.models.build_models import build_model
 from src.training.train import Train_model
 from src.training.evaluation_metrics import evaluate_metrics
-from src.utils.callbacks import EarlyStopping
 from src.utils.model_utils import load_best_model
-
+# Các module khác
+from src.utils.callbacks import EarlyStopping
+from src.ultils.seed.py import set_seed
 def parse_args():
     parser = argparse.ArgumentParser()
 
@@ -49,8 +46,14 @@ def parse_args():
 
 # ==================
 def main(args):
+    set_seed(Config.SEED)
     model_name = args.model
-    
+    # === KHỞI TẠO WANDB ===
+    wandb.init(
+        project="Breast-Cancer-IDC",
+        name=f"{model_name}_bs{args.batch_size}_lr{args.lr}",
+        config=vars(args)
+    )
     # ===== Results directories & log file =====
     RESULTS_DIR = Config.get_exp_dir(model_name)
     LOG_DIR = os.path.join(RESULTS_DIR, "logs")
@@ -99,7 +102,8 @@ def main(args):
     # ===== Pos_weight =====
     pos_weight, pos_weight_value = get_pos_weight(Config.TRAIN_CSV, Config.DEVICE)
     print(f"[INFO] Using pos_weight = {pos_weight_value:.4f}")
-    
+    # ===== Thêm Pos Weight vào config của wandb =====
+    wandb.config.update({"pos_weight": float(pos_weight_value)})
     # ===== Loss & Optimizer =====
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = Adam(model.parameters(), lr=Config.LR)
@@ -141,8 +145,19 @@ def main(args):
 
     print("[INFO] Evaluation results:")
     for k, v in metrics.items():
-        print(f"{k}: {v:.4f}")
-        
+        if k != "confusion_matrix":
+            print(f"{k}: {v:.4f}")
+        else:
+            print(f"{k}: {v}")
+            
+    # Ghi log kết quả Test lên WandB
+    wandb.log({
+        "Test Accuracy": metrics["accuracy"],
+        "Test F1": metrics["f1"],
+        "Test AUC": metrics["auc"],
+        "Test Precision": metrics["precision"]
+    })
+    wandb.finish() # Kết thúc phiên làm việc với WandB
     # ===== Save metrics to JSON =====
     METRICS_PATH = os.path.join(RESULTS_DIR, "metrics.json")
     metrics_to_save = {
@@ -152,10 +167,10 @@ def main(args):
         "pos_weight": float(pos_weight_value), 
         "best_epoch": best_epoch_num,
         "accuracy": metrics["accuracy"],
-        "precision": metrics["precision"],
-        "recall": metrics["recall"],
         "f1": metrics["f1"],
-    }
+        "auc": metrics["auc"],
+        "confusion_matrix": metrics["confusion_matrix"]
+        }
 
     with open(METRICS_PATH, "w") as f:
         json.dump(metrics_to_save, f, indent=4)
