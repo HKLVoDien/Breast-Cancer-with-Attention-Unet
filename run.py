@@ -42,6 +42,7 @@ def parse_args():
     parser.add_argument("--max-lr", type=float, default=1e-3, help="Maximum learning rate")
     parser.add_argument("--lr", type=float, default=1e-4, help="Base learning rate for CyclicLR")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
+    parser.add_argument("--epochs", type=int, default=30, help="Number of training epochs")
     return parser.parse_args()
 
 # ==================
@@ -106,10 +107,10 @@ def main(args):
     wandb.config.update({"pos_weight": float(pos_weight_value)})
     # ===== Loss & Optimizer =====
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-    optimizer = Adam(model.parameters(), lr=Config.LR)
+    optimizer = Adam(model.parameters(), lr=Config.BASE_LR)
     # Đặt lr ban đầu bằng base_lr
-    base_lr = args.lr
-    max_lr = args.max_lr
+    base_lr = Config.BASE_LR
+    max_lr = Config.MAX_LR
     # Tính số bước (steps) cho nửa chu kỳ (thường bằng 2-8 lần số batch trong 1 epoch)
     steps_per_epoch = len(train_loader)
     step_size_up = 2 * steps_per_epoch
@@ -163,8 +164,9 @@ def main(args):
     metrics_to_save = {
         "model": model_name,
         "batch_size": Config.BATCH_SIZE,
-        "learning_rate": Config.LR,
-        "pos_weight": float(pos_weight_value), 
+        "learning_rate": Config.BASE_LR,
+        "max_learning_rate": Config.MAX_LR,
+        "pos_weight": float(pos_weight_value),
         "best_epoch": best_epoch_num,
         "accuracy": metrics["accuracy"],
         "f1": metrics["f1"],
@@ -179,7 +181,7 @@ def main(args):
 
 if __name__ == "__main__":
     args = parse_args()
-    # 1. Cập nhật Config từ tham số Command Line (LR, BATCH_SIZE)
+    # 1. Cập nhật Config từ tham số Command Line (LR, BATCH_SIZE, EPOCHS)
     Config.update_from_args(args)
     
     # 2. Nếu người dùng chọn --build-data, thực hiện xây dựng metadata và chia dataset rồi thoát

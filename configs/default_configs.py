@@ -24,7 +24,7 @@ class Config:
     # Training Hyperparameters
     EPOCHS = 30
     BATCH_SIZE = 32
-    MIN_LR = 1e-4 # Cập nhật sau khi dùng LR Finder
+    BASE_LR = 1e-4 # Cập nhật sau khi dùng LR Finder
     MAX_LR = 1e-3 # Cập nhật sau khi dùng LR Finder
 
     # Results paths
@@ -39,11 +39,15 @@ class Config:
         if hasattr(args, 'batch_size') and args.batch_size is not None:
             cls.BATCH_SIZE = args.batch_size
         if hasattr(args, 'lr') and args.lr is not None:
-            cls.LR = args.lr
-            
+            cls.BASE_LR = args.lr
+        if hasattr(args, 'max_lr') and args.max_lr is not None:
+            cls.MAX_LR = args.max_lr
+        if hasattr(args, 'epochs') and args.epochs is not None:
+            cls.EPOCHS = args.epochs
+
     @classmethod
     def get_exp_dir(cls, model_name):
         """Tạo đường dẫn thư mục lưu kết quả riêng cho từng lần chạy"""
-        exp_name = f"{model_name}_bs{cls.BATCH_SIZE}_lr{cls.LR}"
+        exp_name = f"{model_name}_bs{cls.BATCH_SIZE}_lr{cls.BASE_LR}_maxlr{cls.MAX_LR}_epochs{cls.EPOCHS}"
         return os.path.join(cls.RESULTS_DIR, exp_name)
 config = Config()
