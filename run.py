@@ -196,7 +196,7 @@ if __name__ == "__main__":
         find_lr(model_name=args.model)
         print("[INFO] Learning rate finder completed.")
         exit(0)
-    #Chọn mô hình để huấn luyện: --model "attention_unet, unet, resnet"  --lr 1e-4 --max-lr 1e-3 --batch-size 32
+    #Chọn mô hình để huấn luyện: --model "attention_unet, unet, resnet"  --lr 1e-4 --max-lr 1e-3 --batch-size 32 --epochs 30
     print(f"[INFO] Training model: {args.model}")
     print("[INFO] Starting training...")
     main(args)

@@ -4,6 +4,7 @@
 # configs/default_config.py
 import torch
 import os
+import datetime
 class Config:
     # System
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -44,10 +45,11 @@ class Config:
             cls.MAX_LR = args.max_lr
         if hasattr(args, 'epochs') and args.epochs is not None:
             cls.EPOCHS = args.epochs
-
+    # Tạo timestamp theo chuẩn: NămThángNgày (Ví dụ: 2024_06_15)
+    timestamp = datetime.datetime.now().strftime("%Y_%m_%d")
     @classmethod
     def get_exp_dir(cls, model_name):
         """Tạo đường dẫn thư mục lưu kết quả riêng cho từng lần chạy"""
-        exp_name = f"{model_name}_bs{cls.BATCH_SIZE}_lr{cls.BASE_LR}_maxlr{cls.MAX_LR}_epochs{cls.EPOCHS}"
+        exp_name = f"{model_name}_bs{cls.BATCH_SIZE}_lr{cls.BASE_LR}_maxlr{cls.MAX_LR}_epochs{cls.EPOCHS}_{cls.timestamp}"
         return os.path.join(cls.RESULTS_DIR, exp_name)
 config = Config()
