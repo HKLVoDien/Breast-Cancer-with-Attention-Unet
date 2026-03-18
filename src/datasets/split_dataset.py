@@ -23,8 +23,8 @@ def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     df = pd.read_csv(CSV_PATH)
-    patients = df.patient_id.unique()
-
+    # Thêm hàm sorted() để chốt cứng thứ tự ID bệnh nhân (ví dụ: từ bé đến lớn)
+    patients = sorted(df.patient_id.unique())
     train_ids, sub_ids = train_test_split(
         patients,
         test_size=0.3,
