@@ -51,8 +51,8 @@ def main(args):
     model_name = args.model
     # === KHỞI TẠO WANDB ===
     wandb.init(
-        project="Breast-Cancer-IDC",
-        name=f"{model_name}_bs{args.batch_size}_lr{args.lr}",
+        project=f"Breast-Cancer-IDC_{args.epochs}_epochs",
+        name=f"{model_name}_epochs{args.epochs}_bs{args.batch_size}_lr{args.lr}",
         config=vars(args)
     )
     # ===== Results directories & log file =====
@@ -68,7 +68,7 @@ def main(args):
         with open(LOG_PATH, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(
-                ["epoch", "train_loss", "val_loss", "F1_score"]
+                ["epoch", "train_loss", "val_loss", "F1_score", "AUC_score", "Precision", "Recall", "Accuracy"]
             ) 
    
     # ===== DataLoader =====
@@ -155,9 +155,10 @@ def main(args):
     # Ghi log kết quả Test lên WandB
     wandb.log({
         "Test Accuracy": metrics["accuracy"],
+        "Test Recall": metrics["recall"],
+        "Test Precision": metrics["precision"],
         "Test F1": metrics["f1"],
         "Test AUC": metrics["auc"],
-        "Test Precision": metrics["precision"]
     })
     wandb.finish() # Kết thúc phiên làm việc với WandB
     # ===== Save metrics to JSON =====
@@ -166,10 +167,11 @@ def main(args):
         "model": model_name,
         "batch_size": Config.BATCH_SIZE,
         "learning_rate": Config.BASE_LR,
-        "max_learning_rate": Config.MAX_LR,
         "pos_weight": float(pos_weight_value),
         "best_epoch": best_epoch_num,
         "accuracy": metrics["accuracy"],
+        "recall": metrics["recall"],
+        "precision": metrics["precision"],
         "f1": metrics["f1"],
         "auc": metrics["auc"],
         "confusion_matrix": metrics["confusion_matrix"]
