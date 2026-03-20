@@ -109,21 +109,22 @@ def main(args):
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = Adam(model.parameters(), lr=Config.BASE_LR)
     # Đặt lr ban đầu bằng base_lr
-    base_lr = Config.BASE_LR
-    max_lr = Config.MAX_LR
+    # base_lr = Config.BASE_LR
+    # max_lr = Config.MAX_LR
+    # ======= CyclicLR scheduler ========
     # Tính số bước (steps) cho nửa chu kỳ (thường bằng 2-8 lần số batch trong 1 epoch)
-    steps_per_epoch = len(train_loader)
-    step_size_up = 2 * steps_per_epoch
-    scheduler = torch.optim.lr_scheduler.CyclicLR(
-        optimizer, 
-        base_lr=base_lr, 
-        max_lr=max_lr, 
-        step_size_up=step_size_up,
-        mode="triangular", # Mô hình lượn sóng hình tam giác giống tác giả notebook
-        cycle_momentum=False # Vì Adam không dùng tham số momentum như SGD
-    ) 
+    # steps_per_epoch = len(train_loader)
+    # step_size_up = 2 * steps_per_epoch
+    # scheduler = torch.optim.lr_scheduler.CyclicLR(
+    #     optimizer, 
+    #     base_lr=base_lr, 
+    #     max_lr=max_lr, 
+    #     step_size_up=step_size_up,
+    #     mode="triangular", # Mô hình lượn sóng hình tam giác giống tác giả notebook
+    #     cycle_momentum=False # Vì Adam không dùng tham số momentum như SGD
+    # ) 
     # ===== Trainer =====
-    trainer = Train_model(model, optimizer, criterion, Config.DEVICE, scheduler=scheduler)
+    trainer = Train_model(model, optimizer, criterion, Config.DEVICE, scheduler=None)
     best_epoch_num = trainer.fit(
         train_loader=train_loader,
         val_loader=val_loader,
@@ -196,7 +197,7 @@ if __name__ == "__main__":
         find_lr(model_name=args.model)
         print("[INFO] Learning rate finder completed.")
         exit(0)
-    #Chọn mô hình để huấn luyện: --model "attention_unet, unet, resnet"  --lr 1e-4 --max-lr 1e-3 --batch-size 32 --epochs 30
+    #Chọn mô hình để huấn luyện: --model "attention_unet, unet, resnet"  --lr 1e-4 --batch-size 32 --epochs 30
     print(f"[INFO] Training model: {args.model}")
     print("[INFO] Starting training...")
     main(args)

@@ -60,7 +60,7 @@ class Train_model:
             """
             best_val_f1 = 0.0 
             best_epoch_num = 1
-            early_stopping = EarlyStopping(patience=patience, mode='min') # Dừng khi val_loss không giảm
+            #early_stopping = EarlyStopping(patience=patience, mode='min') # Dừng khi val_loss không giảm
             training_start_time = time.time()
 
             for epoch in range(epochs):
@@ -71,6 +71,10 @@ class Train_model:
                 val_metrics = evaluate_metrics(self.model, val_loader, self.device)
                 val_f1 = val_metrics["f1"]
                 val_auc = val_metrics["auc"]
+                val_precision = val_metrics["precision"]
+                val_recall = val_metrics["recall"]
+                val_accuracy = val_metrics["accuracy"]
+                
                 print(f"Epoch {epoch+1} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val F1: {val_f1:.4f} | Val AUC: {val_auc:.4f}")
 
                 # === WANDB LOGGING MLOPS ===
@@ -79,6 +83,9 @@ class Train_model:
                     "Train Loss": train_loss,
                     "Val Loss": val_loss,
                     "Val F1": val_f1,
+                    "Val Precision": val_precision,
+                    "Val Recall": val_recall,
+                    "Val Accuracy": val_accuracy,
                     "Val AUC": val_auc,
                     "Learning Rate": self.optimizer.param_groups[0]['lr']
                 })
@@ -96,7 +103,10 @@ class Train_model:
                         "model_state_dict": self.model.state_dict(),
                         "val_loss": float(val_loss),
                         "val_f1": float(val_f1),
-                        "val_auc": float(val_auc)
+                        "val_auc": float(val_auc),
+                        "val_precision": float(val_precision),
+                        "val_recall": float(val_recall),
+                        "val_accuracy": float(val_accuracy)
                     }, best_model_path)
                     print(f"[INFO] New best model saved with F1: {val_f1:.4f} at epoch {best_epoch_num}")
                 
@@ -109,10 +119,10 @@ class Train_model:
                 }, last_model_path)
                 
                 # Kiểm tra Early Stopping
-                early_stopping(val_loss)
-                if early_stopping.early_stop:
-                    print(f"[INFO] Early stopping triggered at epoch {epoch+1}.")
-                    break
+                # early_stopping(val_loss)
+                # if early_stopping.early_stop:
+                #     print(f"[INFO] Early stopping triggered at epoch {epoch+1}.")
+                #     break
                     
             total_time = time.time() - training_start_time
             print(f"[INFO] Training completed in {total_time/60:.2f} minutes.")
