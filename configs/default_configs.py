@@ -50,6 +50,6 @@ class Config:
     @classmethod
     def get_exp_dir(cls, model_name):
         """Tạo đường dẫn thư mục lưu kết quả riêng cho từng lần chạy"""
-        exp_name = f"{model_name}_bs{cls.BATCH_SIZE}_lr{cls.BASE_LR}_maxlr{cls.MAX_LR}_epochs{cls.EPOCHS}_{cls.timestamp}"
+        exp_name = f"{model_name}_bs{cls.BATCH_SIZE}_lr{cls.BASE_LR}_epochs{cls.EPOCHS}_{cls.timestamp}"
         return os.path.join(cls.RESULTS_DIR, exp_name)
 config = Config()
