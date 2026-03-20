@@ -75,7 +75,7 @@ class Train_model:
                 val_recall = val_metrics["recall"]
                 val_accuracy = val_metrics["accuracy"]
                 
-                print(f"Epoch {epoch+1} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val F1: {val_f1:.4f} | Val AUC: {val_auc:.4f}")
+                print(f"Epoch {epoch+1} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Accuracy: {val_accuracy:.4f} |Val Recall: {val_recall:.4f} |Val Precision: {val_precision:.4f} | Val F1: {val_f1:.4f} | Val AUC: {val_auc:.4f}")
 
                 # === WANDB LOGGING MLOPS ===
                 wandb.log({
@@ -92,7 +92,7 @@ class Train_model:
                 # Ghi log CSV
                 with open(log_path, "a", newline="") as f:
                     writer = csv.writer(f)
-                    writer.writerow([epoch + 1, train_loss, val_loss, val_f1, val_auc])
+                    writer.writerow([epoch + 1, train_loss, val_loss, val_f1, val_auc, val_precision, val_recall, val_accuracy])
                 
                 # Lưu Best Checkpoint
                 if val_f1 > best_val_f1:
