@@ -8,7 +8,7 @@ import wandb
 from tqdm import tqdm
 from src.utils.callbacks import EarlyStopping
 from src.training.evaluation_metrics import evaluate_metrics
-
+from configs.default_configs import Config
 class Train_model:
     def __init__(self, model, optimizer, criterion, device, scheduler=None):
         self.model = model
@@ -78,17 +78,18 @@ class Train_model:
                 print(f"Epoch {epoch+1} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Accuracy: {val_accuracy:.4f} |Val Recall: {val_recall:.4f} |Val Precision: {val_precision:.4f} | Val F1: {val_f1:.4f} | Val AUC: {val_auc:.4f}")
 
                 # === WANDB LOGGING MLOPS ===
-                wandb.log({
-                    "epoch": epoch + 1,
-                    "Train Loss": train_loss,
-                    "Val Loss": val_loss,
-                    "Val F1": val_f1,
-                    "Val Precision": val_precision,
-                    "Val Recall": val_recall,
-                    "Val Accuracy": val_accuracy,
-                    "Val AUC": val_auc,
-                    "Learning Rate": self.optimizer.param_groups[0]['lr']
-                })
+                if not Config.Turn_WandB_Off:
+                    wandb.log({
+                        "epoch": epoch + 1,
+                        "Train Loss": train_loss,
+                        "Val Loss": val_loss,
+                        "Val F1": val_f1,
+                        "Val Precision": val_precision,
+                        "Val Recall": val_recall,
+                        "Val Accuracy": val_accuracy,
+                        "Val AUC": val_auc,
+                        "Learning Rate": self.optimizer.param_groups[0]['lr']
+                    })
                 # Ghi log CSV
                 with open(log_path, "a", newline="") as f:
                     writer = csv.writer(f)
