@@ -50,11 +50,14 @@ def main(args):
     set_seed(Config.SEED)
     model_name = args.model
     # === KHỞI TẠO WANDB ===
-    wandb.init(
-        project=f"Breast-Cancer-IDC_{args.epochs}_epochs",
-        name=f"{model_name}_epochs{args.epochs}_bs{args.batch_size}_lr{args.lr}",
-        config=vars(args)
-    )
+    if Config.Turn_WandB_Off:
+        print("[INFO] WandB logging is turned OFF. No logs will be sent to WandB.")
+    else:
+        wandb.init(
+            project=f"Breast-Cancer-IDC_{args.epochs}_epochs",
+            name=f"{model_name}_epochs{args.epochs}_bs{args.batch_size}_lr{args.lr}",
+            config=vars(args)
+        )
     # ===== Results directories & log file =====
     RESULTS_DIR = Config.get_exp_dir(model_name)
     LOG_DIR = os.path.join(RESULTS_DIR, "logs")
@@ -104,7 +107,8 @@ def main(args):
     pos_weight, pos_weight_value = get_pos_weight(Config.TRAIN_CSV, Config.DEVICE)
     print(f"[INFO] Using pos_weight = {pos_weight_value:.4f}")
     # ===== Thêm Pos Weight vào config của wandb =====
-    wandb.config.update({"pos_weight": float(pos_weight_value)})
+    if not Config.Turn_WandB_Off:
+        wandb.config.update({"pos_weight": float(pos_weight_value)})
     # ===== Loss & Optimizer =====
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = Adam(model.parameters(), lr=Config.BASE_LR)
@@ -153,13 +157,14 @@ def main(args):
             print(f"{k}: {v}")
             
     # Ghi log kết quả Test lên WandB
-    wandb.log({
-        "Test Accuracy": metrics["accuracy"],
-        "Test Recall": metrics["recall"],
-        "Test Precision": metrics["precision"],
-        "Test F1": metrics["f1"],
-        "Test AUC": metrics["auc"],
-    })
+    if not Config.Turn_WandB_Off:
+        wandb.log({
+            "Test Accuracy": metrics["accuracy"],
+            "Test Recall": metrics["recall"],
+            "Test Precision": metrics["precision"],
+            "Test F1": metrics["f1"],
+            "Test AUC": metrics["auc"],
+        })
     wandb.finish() # Kết thúc phiên làm việc với WandB
     # ===== Save metrics to JSON =====
     METRICS_PATH = os.path.join(RESULTS_DIR, "metrics.json")

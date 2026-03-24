@@ -1,11 +1,22 @@
 # Mission: xây dựng data loader chứa thông tin về dataset breast cancer.
 # Author: Lê Văn Hoàn
 # Version: 1.0
+import torch
+import random
+import numpy as np
 from torch.utils.data import DataLoader
 from torchvision import transforms
-
 from .breast_cancer_dataset import BreastCancerDataset
+from configs.default_configs import Config
 
+# ==========================================
+# Khai báo hàm seed_worker cho DataLoader
+# ==========================================
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+    
 def get_transforms(split):
     if split == "train":
         return transforms.Compose([
@@ -49,13 +60,19 @@ def create_dataloader(
         transform=get_transforms(split)
     )
 
+    # Khởi tạo generator với seed cố định từ file config
+    g = torch.Generator()
+    g.manual_seed(Config.SEED)
+    
     loader = DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=shuffle,
         drop_last=drop_last,
         num_workers=num_workers,
-        pin_memory=pin_memory
+        pin_memory=pin_memory,
+        worker_init_fn=seed_worker,
+        generator=g
     )
 
     return loader
