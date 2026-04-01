@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import torch
 import re
+from src.datasets.check_img_size import check_and_export_invalid_images
 def count_images(base_path):
     folders = os.listdir(base_path)
     total_images = 0
@@ -61,10 +62,32 @@ def build_metadata_csv(
     data_root="data/IDC_regular_ps50_idx5",
     output_csv="data/metadata/idc_metadata.csv"
 ):
+    print("[INFO] Bắt đầu quét thư mục và tạo DataFrame ban đầu...")
     df = breast_cancer_dataframe(data_root)
+    
+    print("[INFO] Bắt đầu kiểm tra và lọc ảnh lỗi kích thước...")
+    invalid_data = check_and_export_invalid_images(df) 
+    
+    # Nếu phát hiện có ảnh lỗi (invalid_data không rỗng)
+    if invalid_data:
+        # Trích xuất danh sách các đường dẫn ảnh bị lỗi
+        invalid_paths = [record["path"] for record in invalid_data]
+        
+        # Lọc bỏ các đường dẫn này khỏi dataframe gốc
+        df_clean = df[~df["path"].isin(invalid_paths)]
+        
+        print(f"[INFO] Đã loại bỏ {len(invalid_paths)} ảnh lỗi.")
+        print(f"[INFO] Số lượng ảnh sạch còn lại: {len(df_clean)}")
+    else:
+        df_clean = df
+        print("[INFO] Dữ liệu hoàn hảo, không phát hiện ảnh lỗi!")
+    
+    # Lưu dataframe đã được làm sạch
     os.makedirs(os.path.dirname(output_csv), exist_ok=True)
-    df.to_csv(output_csv, index=False)
-    return df
+    df_clean.to_csv(output_csv, index=False)
+    print(f"[INFO] Đã lưu metadata tại: {output_csv}")
+
+    return df_clean
 
 def get_pos_weight(csv_path, device):
     """

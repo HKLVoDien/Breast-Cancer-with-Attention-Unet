@@ -4,14 +4,14 @@ from tqdm import tqdm
 import os
 
 def check_and_export_invalid_images(
-    csv_path,
+    dataframe,
     expected_size=(50, 50),
     output_csv='data/metadata/invalid_images.csv'
 ):
     """
     Kiểm tra kích thước ảnh và xuất danh sách các ảnh lỗi (path, w, h) ra file CSV.
     """
-    df = pd.read_csv(csv_path)
+    df = dataframe.copy()
     invalid_records = []
 
     print(f"[INFO] Đang kiểm tra {len(df)} ảnh...")
@@ -48,16 +48,16 @@ def check_and_export_invalid_images(
     if invalid_records:
         invalid_df = pd.DataFrame(invalid_records)
         invalid_df.to_csv(output_csv, index=False)
-        print(f"\n[HOÀN THÀNH] Đã tìm thấy {len(invalid_records)} ảnh lỗi.")
+        print(f"\n[INFO] Đã tìm thấy {len(invalid_records)} ảnh lỗi.")
         print(f"[INFO] Danh sách chi tiết đã được lưu tại: {output_csv}")
     else:
-        print("\n[HOÀN THÀNH] Không có ảnh nào bị lỗi kích thước.")
+        print("\n[INFO] Không có ảnh nào bị lỗi kích thước.")
         
     return invalid_records
 
 if __name__ == "__main__":
     check_and_export_invalid_images(
-        csv_path='data/metadata/idc_metadata.csv',
+        dataframe=pd.read_csv('data/metadata/idc_metadata.csv'),
         expected_size=(50, 50),
         output_csv='data/metadata/invalid_images.csv'
     )
