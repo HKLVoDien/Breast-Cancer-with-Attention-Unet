@@ -5,6 +5,7 @@ import torch
 import time
 import csv 
 import wandb
+import shutil, os
 from tqdm import tqdm
 from src.utils.callbacks import EarlyStopping
 from src.training.evaluation_metrics import evaluate_metrics
@@ -62,7 +63,11 @@ class Train_model:
             best_epoch_num = 1
             #early_stopping = EarlyStopping(patience=patience, mode='min') # Dừng khi val_loss không giảm
             training_start_time = time.time()
-
+            
+            # Định nghĩa các mốc khi training để lưu model
+            if epochs >= 150:
+                milestones = [50, 100]
+            
             for epoch in range(epochs):
                 train_loss = self.train_one_epoch(train_loader)
                 val_loss = self.evaluate(val_loader)
@@ -124,6 +129,19 @@ class Train_model:
                 # if early_stopping.early_stop:
                 #     print(f"[INFO] Early stopping triggered at epoch {epoch+1}.")
                 #     break
+                
+                # Lưu model tại các mốc đã định nếu có
+                current_epoch = epoch + 1
+                if current_epoch in milestones:
+                    # Tạo đường dẫn mới. Ví dụ: results/.../checkpoints/best_at_epoch_50.pth
+                    milestone_path = best_model_path.replace(".pth", f"_at_epoch_{current_epoch}.pth")
+                    
+                    # Kiểm tra xem file best gốc đã tồn tại chưa rồi mới copy
+                    if os.path.exists(best_model_path):
+                        shutil.copy(best_model_path, milestone_path)
+                        print(f"\n[MILESTONE] Đã sao chép kỷ lục Best Model tính đến hiện tại ở mốc {current_epoch} thành: {milestone_path}\n")
+                    else:
+                        print(f"\n[MILESTONE] Cảnh báo: Chưa có best model nào được lưu để copy tại mốc {current_epoch}!\n")
                     
             total_time = time.time() - training_start_time
             print(f"[INFO] Training completed in {total_time/60:.2f} minutes.")

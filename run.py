@@ -140,50 +140,109 @@ def main(args):
         model_name=model_name
         
     )
-    # ===== Load best model and evaluate =====
-    print("[INFO] Loading best model for evaluation...")
-    model = load_best_model(model, BEST_MODEL_PATH, Config.DEVICE)
-    metrics = evaluate_metrics(
-        model=model,
-        dataloader=test_loader,
-        device=Config.DEVICE
-    )
-
-    print("[INFO] Evaluation results:")
-    for k, v in metrics.items():
-        if k != "confusion_matrix":
-            print(f"{k}: {v:.4f}")
-        else:
-            print(f"{k}: {v}")
-            
-    # Ghi log kết quả Test lên WandB
-    if not Config.Turn_WandB_Off:
-        wandb.log({
-            "Test Accuracy": metrics["accuracy"],
-            "Test Recall": metrics["recall"],
-            "Test Precision": metrics["precision"],
-            "Test F1": metrics["f1"],
-            "Test AUC": metrics["auc"],
-        })
-    wandb.finish() # Kết thúc phiên làm việc với WandB
-    # ===== Save metrics to JSON =====
-    METRICS_PATH = os.path.join(RESULTS_DIR, "metrics.json")
-    metrics_to_save = {
+    # Khởi tạo dictionary tổng để lưu JSON sau cùng
+    all_metrics_to_save = {
         "model": model_name,
         "batch_size": Config.BATCH_SIZE,
         "learning_rate": Config.BASE_LR,
-        "pos_weight": float(pos_weight_value),
-        "best_epoch": best_epoch_num,
-        "accuracy": metrics["accuracy"],
-        "recall": metrics["recall"],
-        "precision": metrics["precision"],
-        "f1": metrics["f1"],
-        "auc": metrics["auc"],
-        "confusion_matrix": metrics["confusion_matrix"]
-        }
+        "pos_weight": float(pos_weight_value)
+    }
+    # ===== Load best model and evaluate =====
+    print("[INFO] Bắt đầu quá trình Đánh giá trên tập Test...")
+    print("[INFO] Loading best model for evaluation...")
+    if Config.EPOCHS >= 150:
+        print("[INFO] Kích hoạt chế độ đánh giá đa mốc (Multi-milestone Evaluation)")
+        milestones = [50, 100, 150] 
+        for milestone in milestones:
+            # 1. Xác định đường dẫn file Checkpoint
+            if milestone == 150:
+                ckpt_path = BEST_MODEL_PATH # Mốc cuối cùng chính là best.pth
+            else:
+                ckpt_path = BEST_MODEL_PATH.replace(".pth", f"_at_epoch_{milestone}.pth")
+                
+            if not os.path.exists(ckpt_path):
+                print(f"[WARNING] Không tìm thấy file checkpoint cho mốc {milestone} tại: {ckpt_path}")
+                continue
+            print(f"\n--- Đang đánh giá mốc {milestone} Epochs ---")
+            checkpoint = torch.load(ckpt_path, map_location=Config.DEVICE)
+            actual_best_epoch = checkpoint.get("epoch", "Unknown")
+            model = load_best_model(model, ckpt_path, Config.DEVICE)
+            metrics = evaluate_metrics(
+                    model=model,
+                    dataloader=test_loader,
+                    device=Config.DEVICE
+                )
+            for k, v in metrics.items():
+                if k != "confusion_matrix":
+                    print(f"  {k}: {v:.4f}")
+                else:
+                    print(f"  {k}: {v}")
+            # Đẩy lên WandB (Tạo khóa riêng biệt cho mỗi mốc)
+            if not Config.Turn_WandB_Off:
+                wandb.log({
+                    f"Test Accuracy (Epoch {milestone})": metrics["accuracy"],
+                    f"Test Recall (Epoch {milestone})": metrics["recall"],
+                    f"Test Precision (Epoch {milestone})": metrics["precision"],
+                    f"Test F1 (Epoch {milestone})": metrics["f1"],
+                    f"Test AUC (Epoch {milestone})": metrics["auc"],
+                })
+            #Ghi vào Dictionary tổng
+            all_metrics_to_save[f"milestone_{milestone}"] = {
+                    "best_epoch": actual_best_epoch,
+                    "accuracy": metrics["accuracy"],
+                    "recall": metrics["recall"],
+                    "precision": metrics["precision"],
+                    "f1": metrics["f1"],
+                    "auc": metrics["auc"],
+                    "confusion_matrix": metrics["confusion_matrix"]
+                }        
+    else:
+        model = load_best_model(model, BEST_MODEL_PATH, Config.DEVICE)
+        metrics = evaluate_metrics(
+            model=model,
+            dataloader=test_loader,
+            device=Config.DEVICE
+        )
+
+        print("[INFO] Evaluation results:")
+        for k, v in metrics.items():
+            if k != "confusion_matrix":
+                print(f"{k}: {v:.4f}")
+            else:
+                print(f"{k}: {v}")
+            
+        # Ghi log kết quả Test lên WandB
+        if not Config.Turn_WandB_Off:
+            wandb.log({
+                "Test Accuracy": metrics["accuracy"],
+                "Test Recall": metrics["recall"],
+                "Test Precision": metrics["precision"],
+                "Test F1": metrics["f1"],
+                "Test AUC": metrics["auc"],
+            })
+        metrics_to_save = {
+            "model": model_name,
+            "batch_size": Config.BATCH_SIZE,
+            "learning_rate": Config.BASE_LR,
+            "pos_weight": float(pos_weight_value),
+            "best_epoch": best_epoch_num,
+            "accuracy": metrics["accuracy"],
+            "recall": metrics["recall"],
+            "precision": metrics["precision"],
+            "f1": metrics["f1"],
+            "auc": metrics["auc"],
+            "confusion_matrix": metrics["confusion_matrix"]
+            }  
+    wandb.finish() # Kết thúc phiên làm việc với WandB
+        # ===== Save metrics to JSON =====
+    METRICS_PATH = os.path.join(RESULTS_DIR, "metrics.json")
+   
 
     with open(METRICS_PATH, "w") as f:
-        json.dump(metrics_to_save, f, indent=4)
+        if Config.EPOCHS >= 150:
+            json.dump(all_metrics_to_save, f, indent=4) 
+        else:
+            json.dump(metrics_to_save, f, indent=4)
 
     print(f"[INFO] Metrics saved to {METRICS_PATH}")
 

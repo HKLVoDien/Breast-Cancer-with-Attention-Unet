@@ -31,7 +31,7 @@ class Config:
     # Results paths
     RESULTS_DIR = "results"
     # WandB
-    Turn_WandB_Off = True  # Đặt True để tắt hoàn toàn WandB (dành cho debug hoặc khi không muốn log)
+    Turn_WandB_Off = False  # Đặt True để tắt hoàn toàn WandB (dành cho debug hoặc khi không muốn log)
     @classmethod
     def update_from_args(cls, args):
         """
