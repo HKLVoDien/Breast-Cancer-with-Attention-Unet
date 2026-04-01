@@ -177,14 +177,15 @@ def main(args):
                     print(f"  {k}: {v:.4f}")
                 else:
                     print(f"  {k}: {v}")
-            # Đẩy lên WandB (Tạo khóa riêng biệt cho mỗi mốc)
-            if not Config.Turn_WandB_Off:
+            # Ghi log kết quả Test lên WandB
+            
+            if not Config.Turn_WandB_Off and milestone == 150: # Chỉ log mốc 150 epochs lên WandB để tránh quá nhiều log
                 wandb.log({
-                    f"Test Accuracy (Epoch {milestone})": metrics["accuracy"],
-                    f"Test Recall (Epoch {milestone})": metrics["recall"],
-                    f"Test Precision (Epoch {milestone})": metrics["precision"],
-                    f"Test F1 (Epoch {milestone})": metrics["f1"],
-                    f"Test AUC (Epoch {milestone})": metrics["auc"],
+                    "Test Accuracy": metrics["accuracy"],
+                    "Test Recall": metrics["recall"],
+                    "Test Precision": metrics["precision"],
+                    "Test F1": metrics["f1"],
+                    "Test AUC": metrics["auc"],
                 })
             #Ghi vào Dictionary tổng
             all_metrics_to_save[f"milestone_{milestone}"] = {
