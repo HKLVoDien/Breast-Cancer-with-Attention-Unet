@@ -54,12 +54,11 @@ class Train_model:
                 running_loss += loss.item()
 
         return running_loss / len(loader)
-    def fit(self, train_loader, val_loader, epochs, patience, log_path, best_model_path, last_model_path, model_name):
+    def fit(self, train_loader, val_loader, epochs, patience, log_path, best_model_path, last_model_path, model_name, start_epoch=0, best_val_f1=0.0):
             """
             Đóng gói toàn bộ quá trình huấn luyện: lặp epoch, tính loss, tính metrics, 
             ghi log, lưu model và early stopping.
             """
-            best_val_f1 = 0.0 
             best_epoch_num = 1
             #early_stopping = EarlyStopping(patience=patience, mode='min') # Dừng khi val_loss không giảm
             training_start_time = time.time()
@@ -71,7 +70,7 @@ class Train_model:
             #Anomaly Detection
             prev_val_loss = float('inf')
             SPIKE_THRESHOLD_PERCENT = 100.0
-            for epoch in range(epochs):
+            for epoch in range(start_epoch, epochs):
                 train_loss = self.train_one_epoch(train_loader)
                 val_loss = self.evaluate(val_loader)
                 
