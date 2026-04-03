@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument("--exp-dir", type=str, required=True, help="Đường dẫn tới thư mục kết quả bị ngắt (Ví dụ: results/attention_unet_bs32_lr0.0001_epochs150_2024_06_15)")
     parser.add_argument("--wandb-id", type=str, required=True, help="Mã ID của phiên WandB bị ngắt (Ví dụ: 1a2b3c4d)")
     parser.add_argument("--epochs", type=int, default=150, help="Tổng số epoch dự định chạy ban đầu")
-    parser.add_argument("--bs", type=int, default=32, help="Batch size cũ")
+    parser.add_argument("--batch-size", type=int, default=32, help="Batch size cũ")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate cũ")
     return parser.parse_args()
 

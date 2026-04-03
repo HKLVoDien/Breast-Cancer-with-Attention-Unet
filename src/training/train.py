@@ -69,7 +69,7 @@ class Train_model:
                 milestones = [50, 100]
             #Anomaly Detection
             prev_val_loss = float('inf')
-            SPIKE_THRESHOLD_PERCENT = 100.0
+            SPIKE_THRESHOLD_PERCENT = 50.0
             for epoch in range(start_epoch, epochs):
                 train_loss = self.train_one_epoch(train_loader)
                 val_loss = self.evaluate(val_loader)
