@@ -52,6 +52,12 @@ def parse_args():
     parser.add_argument(
         "--epochs", type=int, default=30, help="Number of training epochs"
     )
+    parser.add_argument(
+        "--wandb-project",
+        type=str,
+        default="Breast-Cancer-IDC",
+        help="WandB project name for logging",
+    )
     return parser.parse_args()
 
 
@@ -64,7 +70,7 @@ def main(args):
         print("[INFO] WandB logging is turned OFF. No logs will be sent to WandB.")
     else:
         wandb.init(
-            project=f"Breast-Cancer-IDC_{args.epochs}_epochs",
+            project=f"{args.wandb_project}",
             name=f"{model_name}_epochs{args.epochs}_bs{args.batch_size}_lr{args.lr}",
             config=vars(args),
         )
@@ -228,7 +234,7 @@ if __name__ == "__main__":
         find_lr(model_name=args.model)
         print("[INFO] Learning rate finder completed.")
         exit(0)
-    # Chọn mô hình để huấn luyện: --model "attention_unet, unet, resnet"  --lr 1e-4 --batch-size 32 --epochs 30
+    # Chọn mô hình để huấn luyện: --model "attention_unet, unet, resnet"  --lr 1e-4 --batch-size 128 --epochs 200 --wandb-project "Breast-Cancer-IDC"
     print(f"[INFO] Training model: {args.model}")
     print("[INFO] Starting training...")
     main(args)

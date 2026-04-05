@@ -18,6 +18,7 @@ from src.utils.seed import set_seed
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--wandb-project", type=str, required=True, help="Tên dự án WandB của phiên bị ngắt (Ví dụ: Breast-Cancer-IDC_150_epochs)")
     parser.add_argument("--exp-dir", type=str, required=True, help="Đường dẫn tới thư mục kết quả bị ngắt (Ví dụ: results/attention_unet_bs32_lr0.0001_epochs150_2024_06_15)")
     parser.add_argument("--wandb-id", type=str, required=True, help="Mã ID của phiên WandB bị ngắt (Ví dụ: 1a2b3c4d)")
     parser.add_argument("--epochs", type=int, default=150, help="Tổng số epoch dự định chạy ban đầu")
@@ -57,7 +58,7 @@ def main():
     # 3. Nối tiếp WandB
     if not Config.Turn_WandB_Off:
         wandb.init(
-            project=f"Breast-Cancer-IDC_{args.epochs}_epochs",
+            project=f"{args.wandb_project}",
             id=args.wandb_id,
             resume="must"
         )
@@ -88,7 +89,7 @@ def main():
         best_model_path=BEST_MODEL_PATH,
         last_model_path=LAST_MODEL_PATH,
         model_name=model_name,
-        start_epoch=start_epoch, # Truyền số 130 vào đây
+        start_epoch=start_epoch, 
         best_val_f1=previous_best_f1 # Truyền kỷ lục F1 cũ vào đây để tránh ghi đè nhầm
         )
 
