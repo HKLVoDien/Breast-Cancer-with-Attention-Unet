@@ -24,7 +24,7 @@ def evaluate_metrics(model, dataloader, device):
 
             logits = model(images)              # (B,) or (B,1)
             probs = torch.sigmoid(logits)       # (0,1)
-            preds = (probs >= 0.5).long()       # threshold = 0.5
+            preds = (probs >= 0.6).long()       # threshold = 0.6
 
             all_preds.append(preds.cpu())
             all_labels.append(labels.cpu())
