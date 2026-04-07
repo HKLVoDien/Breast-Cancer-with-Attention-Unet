@@ -16,6 +16,9 @@ def build_model(name: str, **kwargs):
 
     elif name == "attention_unet":
         return AttentionUNET(**kwargs)
+    elif name == "attention_unet_v2":
+        # Thêm dòng này: Khởi tạo bản V2 với 4 tầng (chiều sâu mới)
+        return AttentionUNET(features=[64, 128, 256, 512], **kwargs)
     elif name == "resnet":
         return ResNet(pretrained=True)
     elif name == "monai_attention_unet":
@@ -24,13 +27,13 @@ def build_model(name: str, **kwargs):
     else:
         raise ValueError(
             f"Unknown model '{name}'. "
-            "Available: unet | attention_unet | resnet | monai_attention_unet"
+            "Available: unet | attention_unet | attention_unet_v2 | resnet | monai_attention_unet"
         )
 
 if __name__ == "__main__":
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     #Test xây dựng mô hình
-    model_names = ["unet", "attention_unet", "resnet"]
+    model_names = ["unet", "attention_unet", "attention_unet_v2", "resnet"]
     for name in model_names:
         model = build_model(name, in_channels=3).to(DEVICE)
         x = torch.randn(2, 3, 224, 224).to(DEVICE)

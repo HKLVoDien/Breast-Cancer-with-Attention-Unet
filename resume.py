@@ -47,14 +47,14 @@ def main():
     model_name = checkpoint.get("model", "attention_unet")
     start_epoch = checkpoint["epoch"] # Ví dụ: Sẽ lấy ra số 130
     print(f"[INFO] Khôi phục mô hình {model_name} | Tiếp tục chạy từ Epoch {start_epoch + 1}")
-    #Đọc file best.pth để lấy kỷ lục F1 cũ (Tránh ghi đè nhầm)
-    
+    # Đọc file best.pth để lấy kỷ lục F1 cũ (Tránh ghi đè nhầm)
+
     previous_best_f1 = 0.0
     if os.path.exists(BEST_MODEL_PATH):
         best_ckpt = torch.load(BEST_MODEL_PATH, map_location=Config.DEVICE)
         previous_best_f1 = best_ckpt.get("val_f1", 0.0)
         print(f"[INFO] Đã tìm thấy kỷ lục cũ. Best F1 hiện tại: {previous_best_f1:.4f}")
-        
+
     # 3. Nối tiếp WandB
     if not Config.Turn_WandB_Off:
         wandb.init(
@@ -105,98 +105,49 @@ def main():
     }
 
     # ===== Load best model and evaluate =====
+    print("[INFO] Bắt đầu quá trình Đánh giá trên tập Test...")
     print("[INFO] Loading best model for evaluation...")
-    if Config.EPOCHS >= 150:
-        print("[INFO] Kích hoạt chế độ đánh giá đa mốc (Multi-milestone Evaluation)")
-        milestones = [50, 100, 150] 
-        for milestone in milestones:
-            # 1. Xác định đường dẫn file Checkpoint
-            if milestone == 150:
-                ckpt_path = BEST_MODEL_PATH # Mốc cuối cùng chính là best.pth
-            else:
-                ckpt_path = BEST_MODEL_PATH.replace(".pth", f"_at_epoch_{milestone}.pth")
-                
-            if not os.path.exists(ckpt_path):
-                print(f"[WARNING] Không tìm thấy file checkpoint cho mốc {milestone} tại: {ckpt_path}")
-                continue
-            print(f"\n--- Đang đánh giá mốc {milestone} Epochs ---")
-            checkpoint = torch.load(ckpt_path, map_location=Config.DEVICE)
-            actual_best_epoch = checkpoint.get("epoch", "Unknown")
-            model = load_best_model(model, ckpt_path, Config.DEVICE)
-            metrics = evaluate_metrics(
-                    model=model,
-                    dataloader=test_loader,
-                    device=Config.DEVICE
-                )
-            for k, v in metrics.items():
-                if k != "confusion_matrix":
-                    print(f"  {k}: {v:.4f}")
-                else:
-                    print(f"  {k}: {v}")
-            # Ghi log kết quả Test lên WandB
-            
-            if not Config.Turn_WandB_Off and milestone == 150: # Chỉ log mốc 150 epochs lên WandB để tránh quá nhiều log
-                wandb.log({
-                    "Test Accuracy": metrics["accuracy"],
-                    "Test Recall": metrics["recall"],
-                    "Test Precision": metrics["precision"],
-                    "Test F1": metrics["f1"],
-                    "Test AUC": metrics["auc"],
-                })
-            #Ghi vào Dictionary tổng
-            all_metrics_to_save[f"milestone_{milestone}"] = {
-                    "best_epoch": actual_best_epoch,
-                    "accuracy": metrics["accuracy"],
-                    "recall": metrics["recall"],
-                    "precision": metrics["precision"],
-                    "f1": metrics["f1"],
-                    "auc": metrics["auc"],
-                    "confusion_matrix": metrics["confusion_matrix"]
-                }        
-    else:
-        model = load_best_model(model, BEST_MODEL_PATH, Config.DEVICE)
-        metrics = evaluate_metrics(
-            model=model,
-            dataloader=test_loader,
-            device=Config.DEVICE
-        )
 
-        print("[INFO] Evaluation results:")
-        for k, v in metrics.items():
-            if k != "confusion_matrix":
-                print(f"{k}: {v:.4f}")
-            else:
-                print(f"{k}: {v}")
-            
-        # Ghi log kết quả Test lên WandB
-        if not Config.Turn_WandB_Off:
-            wandb.log({
+    model = load_best_model(model, BEST_MODEL_PATH, Config.DEVICE)
+    metrics = evaluate_metrics(
+        model=model, dataloader=test_loader, device=Config.DEVICE
+    )
+
+    print("[INFO] Evaluation results:")
+    for k, v in metrics.items():
+        if k != "confusion_matrix":
+            print(f"{k}: {v:.4f}")
+        else:
+            print(f"{k}: {v}")
+
+    # Ghi log kết quả Test lên WandB
+    if not Config.Turn_WandB_Off:
+        wandb.log(
+            {
                 "Test Accuracy": metrics["accuracy"],
                 "Test Recall": metrics["recall"],
                 "Test Precision": metrics["precision"],
                 "Test F1": metrics["f1"],
                 "Test AUC": metrics["auc"],
-            })
-        metrics_to_save = {
-            "model": model_name,
-            "batch_size": Config.BATCH_SIZE,
-            "learning_rate": Config.BASE_LR,
-            "pos_weight": float(pos_weight_value),
-            "best_epoch": best_epoch_num,
-            "accuracy": metrics["accuracy"],
-            "recall": metrics["recall"],
-            "precision": metrics["precision"],
-            "f1": metrics["f1"],
-            "auc": metrics["auc"],
-            "confusion_matrix": metrics["confusion_matrix"]
-            }  
-    wandb.finish() # Kết thúc phiên làm việc với WandB
+            }
+        )
+    metrics_to_save = {
+        "model": model_name,
+        "batch_size": Config.BATCH_SIZE,
+        "learning_rate": Config.BASE_LR,
+        "pos_weight": float(pos_weight_value),
+        "best_epoch": best_epoch_num,
+        "accuracy": metrics["accuracy"],
+        "recall": metrics["recall"],
+        "precision": metrics["precision"],
+        "f1": metrics["f1"],
+        "auc": metrics["auc"],
+        "confusion_matrix": metrics["confusion_matrix"],
+    }
+    wandb.finish()  # Kết thúc phiên làm việc với WandB
+    # ===== Save metrics to JSON =====
     with open(METRICS_PATH, "w") as f:
-        if Config.EPOCHS >= 150:
-            json.dump(all_metrics_to_save, f, indent=4) 
-        else:
-            json.dump(metrics_to_save, f, indent=4)
-
+        json.dump(metrics_to_save, f, indent=4)
     print(f"[INFO] Metrics saved to {METRICS_PATH}")
 
 if __name__ == "__main__":
