@@ -39,7 +39,7 @@ def parse_args():
         "--model",
         type=str,
         default="attention_unet",
-        choices=["unet", "attention_unet", "resnet", "monai_attention_unet"],
+        choices=["unet", "attention_unet","attention_unet_v2", "resnet", "monai_attention_unet"],
         help="Model to train",
     )
     parser.add_argument(

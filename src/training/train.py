@@ -5,7 +5,7 @@ import torch
 import time
 import csv
 import wandb
-import shutil, os
+import shutil, os, numpy as np
 from tqdm import tqdm
 from src.utils.callbacks import EarlyStopping
 from src.training.evaluation_metrics import evaluate_metrics
@@ -20,10 +20,32 @@ class Train_model:
         self.device = device
         self.scheduler = scheduler
 
+    def _calculate_metrics_from_arrays(self, y_true, y_pred):
+        """
+        Hàm hỗ trợ tính toán metrics từ mảng numpy để tránh chạy lại model.
+        Dựa trên logic threshold 0.6 của bạn.
+        """
+        TP = np.sum((y_pred == 1) & (y_true == 1))
+        TN = np.sum((y_pred == 0) & (y_true == 0))
+        FP = np.sum((y_pred == 1) & (y_true == 0))
+        FN = np.sum((y_pred == 0) & (y_true == 1))
+
+        accuracy = (TP + TN) / (TP + TN + FP + FN + 1e-8)
+        precision = TP / (TP + FP + 1e-8)
+        recall = TP / (TP + FN + 1e-8)
+        f1 = 2 * precision * recall / (precision + recall + 1e-8)
+        return {
+            "accuracy": accuracy,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
+        }
+
     def train_one_epoch(self, loader):
         self.model.train()
         running_loss = 0.0
-
+        all_preds = []
+        all_labels = []
         for batch in tqdm(loader, leave=False):
             images = batch["image"].to(self.device)
             labels = batch["label"].float().to(self.device)
@@ -40,13 +62,24 @@ class Train_model:
                 self.scheduler.step()
             # ------------------------------
             running_loss += loss.item()
+            # Thu thập dữ liệu để tính metrics ngay tại đây
+            probs = torch.sigmoid(outputs)
+            preds = (probs >= 0.6).long()  # Khớp với threshold của bạn
+            all_preds.append(preds.detach().cpu())
+            all_labels.append(labels.detach().cpu())
 
-        return running_loss / len(loader)
+        epoch_loss = running_loss / len(loader.dataset)
+        y_pred = torch.cat(all_preds).numpy().flatten()
+        y_true = torch.cat(all_labels).numpy().flatten()
+        metrics = self._calculate_metrics_from_arrays(y_true, y_pred)
+        metrics["loss"] = epoch_loss
+        return metrics
 
     def evaluate(self, loader):
         self.model.eval()
         running_loss = 0.0
-
+        all_preds = []
+        all_labels = []
         with torch.no_grad():
             for batch in loader:
                 images = batch["image"].to(self.device)
@@ -55,8 +88,17 @@ class Train_model:
                 outputs = self.model(images).squeeze(1)
                 loss = self.criterion(outputs, labels)
                 running_loss += loss.item()
-
-        return running_loss / len(loader)
+                # Thu thập dữ liệu để tính metrics ngay tại đây
+                probs = torch.sigmoid(outputs)
+                preds = (probs >= 0.6).long()
+                all_preds.append(preds.cpu())
+                all_labels.append(labels.cpu())
+        epoch_loss = running_loss / len(loader.dataset)
+        y_pred = torch.cat(all_preds).numpy().flatten()
+        y_true = torch.cat(all_labels).numpy().flatten()
+        metrics = self._calculate_metrics_from_arrays(y_true, y_pred)
+        metrics["loss"] = epoch_loss
+        return metrics
 
     def fit(
         self,
@@ -93,20 +135,29 @@ class Train_model:
         # Anomaly Detection
         prev_val_loss = float("inf")
         SPIKE_THRESHOLD_PERCENT = 50.0
+
         for epoch in range(start_epoch, epochs):
-            train_loss = self.train_one_epoch(train_loader)
-            val_loss = self.evaluate(val_loader)
+            train_results = self.train_one_epoch(train_loader)
+            val_results = self.evaluate(val_loader)
 
-            # Tính toán chỉ số trên tập Val
-            val_metrics = evaluate_metrics(self.model, val_loader, self.device)
-            val_f1 = val_metrics["f1"]
-            val_auc = val_metrics["auc"]
-            val_precision = val_metrics["precision"]
-            val_recall = val_metrics["recall"]
-            val_accuracy = val_metrics["accuracy"]
+            # Giải nén kết quả
+            train_loss, train_f1 = train_results["loss"], train_results["f1"]
+            train_acc, train_prec, train_rec = (
+                train_results["accuracy"],
+                train_results["precision"],
+                train_results["recall"],
+            )
 
+            val_loss, val_f1 = val_results["loss"], val_results["f1"]
+            val_acc, val_prec, val_rec = (
+                val_results["accuracy"],
+                val_results["precision"],
+                val_results["recall"],
+            )
+
+        
             print(
-                f"Epoch {epoch+1} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Accuracy: {val_accuracy:.4f} |Val Recall: {val_recall:.4f} |Val Precision: {val_precision:.4f} | Val F1: {val_f1:.4f} | Val AUC: {val_auc:.4f}"
+                f"Epoch {epoch+1} | Train Loss: {train_loss:.4f} | Train Accuracy: {train_acc:.4f} | Train Recall: {train_rec:.4f} | Train Precision: {train_prec:.4f} | Train F1: {train_f1:.4f} \n Val Loss: {val_loss:.4f} | Val Accuracy: {val_acc:.4f} |Val Recall: {val_rec:.4f} |Val Precision: {val_prec:.4f} | Val F1: {val_f1:.4f}"
             )
             # ========================================================
             # THỰC THI BẪY BẤT THƯỜNG (ANOMALY DETECTION)
@@ -146,7 +197,10 @@ class Train_model:
                             },
                             "train_loss": float(train_loss),
                             "val_f1": float(val_f1),
-                            "val_auc": float(val_auc),
+                            "train_accuracy": float(train_acc),
+                            "train_precision": float(train_prec),
+                            "train_recall": float(train_rec),
+                            "train_f1": float(train_f1),
                             "learning_rate": self.optimizer.param_groups[0]["lr"],
                         },
                         anomaly_path,
@@ -167,12 +221,15 @@ class Train_model:
                     {
                         "epoch": epoch + 1,
                         "Train Loss": train_loss,
+                        "Train Accuracy": train_acc,
+                        "Train Precision": train_prec,
+                        "Train Recall": train_rec,
+                        "Train F1": train_f1,
                         "Val Loss": val_loss,
                         "Val F1": val_f1,
-                        "Val Precision": val_precision,
-                        "Val Recall": val_recall,
-                        "Val Accuracy": val_accuracy,
-                        "Val AUC": val_auc,
+                        "Val Precision": val_prec,
+                        "Val Recall": val_rec,
+                        "Val Accuracy": val_acc,
                         "Learning Rate": self.optimizer.param_groups[0]["lr"],
                     }
                 )
@@ -183,12 +240,15 @@ class Train_model:
                     [
                         epoch + 1,
                         train_loss,
+                        train_acc,
+                        train_prec,
+                        train_rec,
+                        train_f1,
                         val_loss,
                         val_f1,
-                        val_auc,
-                        val_precision,
-                        val_recall,
-                        val_accuracy,
+                        val_acc,
+                        val_rec,
+                        val_acc,
                     ]
                 )
 
@@ -202,10 +262,9 @@ class Train_model:
                         "model_state_dict": self.model.state_dict(),
                         "val_loss": float(val_loss),
                         "val_f1": float(val_f1),
-                        "val_auc": float(val_auc),
-                        "val_precision": float(val_precision),
-                        "val_recall": float(val_recall),
-                        "val_accuracy": float(val_accuracy),
+                        "val_precision": float(val_prec),
+                        "val_recall": float(val_rec),
+                        "val_accuracy": float(val_acc),
                     },
                     best_model_path,
                 )
@@ -260,7 +319,13 @@ class Train_model:
                         "optimizer_state_dict": self.optimizer.state_dict(),
                         "val_f1": float(val_f1),
                         "val_loss": float(val_loss),
-                        "val_auc": float(val_auc),
+                        "val_precision": float(val_prec),
+                        "val_recall": float(val_rec),
+                        "val_accuracy": float(val_acc),
+                        "train_accuracy": float(train_acc),
+                        "train_precision": float(train_prec),
+                        "train_recall": float(train_rec),
+                        "train_f1": float(train_f1),
                     },
                     milestone_path,
                 )
