@@ -39,7 +39,14 @@ def parse_args():
         "--model",
         type=str,
         default="attention_unet",
-        choices=["unet", "attention_unet","attention_unet_v2", "resnet", "monai_attention_unet"],
+        choices=[
+            "unet",
+            "attention_unet",
+            "attention_unet_v2",
+            "attention_unet_v3",
+            "resnet",
+            "monai_attention_unet",
+        ],
         help="Model to train",
     )
     parser.add_argument(
@@ -192,7 +199,6 @@ def main(args):
                 "Test Recall": metrics["recall"],
                 "Test Precision": metrics["precision"],
                 "Test F1": metrics["f1"],
-                "Test AUC": metrics["auc"],
             }
         )
     metrics_to_save = {
@@ -205,7 +211,6 @@ def main(args):
         "recall": metrics["recall"],
         "precision": metrics["precision"],
         "f1": metrics["f1"],
-        "auc": metrics["auc"],
         "confusion_matrix": metrics["confusion_matrix"],
     }
     wandb.finish()  # Kết thúc phiên làm việc với WandB

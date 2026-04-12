@@ -68,7 +68,7 @@ class Train_model:
             all_preds.append(preds.detach().cpu())
             all_labels.append(labels.detach().cpu())
 
-        epoch_loss = running_loss / len(loader.dataset)
+        epoch_loss = running_loss / len(loader)
         y_pred = torch.cat(all_preds).numpy().flatten()
         y_true = torch.cat(all_labels).numpy().flatten()
         metrics = self._calculate_metrics_from_arrays(y_true, y_pred)
@@ -93,7 +93,7 @@ class Train_model:
                 preds = (probs >= 0.6).long()
                 all_preds.append(preds.cpu())
                 all_labels.append(labels.cpu())
-        epoch_loss = running_loss / len(loader.dataset)
+        epoch_loss = running_loss / len(loader)
         y_pred = torch.cat(all_preds).numpy().flatten()
         y_true = torch.cat(all_labels).numpy().flatten()
         metrics = self._calculate_metrics_from_arrays(y_true, y_pred)
