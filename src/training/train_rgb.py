@@ -9,7 +9,7 @@ import wandb
 import shutil, os, numpy as np
 from tqdm import tqdm
 from src.utils.callbacks import EarlyStopping
-from src.training.evaluation_metrics import evaluate_metrics
+from src.utils.soft_voting import get_soft_voting_preds
 from configs.default_configs import Config
 
 
@@ -47,7 +47,10 @@ class Train_model_RGB:
 
     def train_one_epoch(self, loader):
         self.model.train()
-        running_loss = 0.0
+        running_loss_r = 0.0
+        running_loss_g = 0.0
+        running_loss_b = 0.0
+        running_total_loss = 0.0
         all_preds = []
         all_labels = []
         for batch in tqdm(loader, leave=False):
@@ -57,31 +60,51 @@ class Train_model_RGB:
             labels = batch["label"].float().to(self.device)
 
             self.optimizer.zero_grad()
-            outputs = self.model(image_r, image_g, image_b)  # (B,)
-            loss = self.criterion(outputs, labels)
+            # 1. Nhận 3 logit riêng biệt
+            logit_r, logit_g, logit_b = self.model(image_r, image_g, image_b)
+            # 2. Tính 3 hàm Loss riêng biệt cho 3 nhánh
+            loss_r = self.criterion(logit_r, labels)
+            loss_g = self.criterion(logit_g, labels)
+            loss_b = self.criterion(logit_b, labels)
 
-            loss.backward()
+            # 3. Tổng hợp Loss và truyền ngược (cộng lại hoặc chia 3 đều được)
+            total_loss = (loss_r + loss_g + loss_b) / 3.0
+            total_loss.backward()
             self.optimizer.step()
 
             if self.scheduler is not None:
                 self.scheduler.step()
 
-            running_loss += loss.item()
-            probs = torch.sigmoid(outputs)
-            preds = (probs >= 0.6).long()
+            # Cập nhật running loss cho từng nhánh và tổng thể
+            running_total_loss += total_loss.item()
+            running_loss_r += loss_r.item()
+            running_loss_g += loss_g.item()
+            running_loss_b += loss_b.item()
+
+            # Gọi hàm Soft Voting từ file utils
+            preds, _ = get_soft_voting_preds(logit_r, logit_g, logit_b, threshold=0.6)
             all_preds.append(preds.detach().cpu())
             all_labels.append(labels.detach().cpu())
 
-        epoch_loss = running_loss / len(loader)
         y_pred = torch.cat(all_preds).numpy().flatten()
         y_true = torch.cat(all_labels).numpy().flatten()
+        # Tính trung bình cho cả epoch
+        num_batches = len(loader)
         metrics = self._calculate_metrics_from_arrays(y_true, y_pred)
-        metrics["loss"] = epoch_loss
+
+        # Lưu cả 4 loss vào dictionary trả về
+        metrics["loss_total"] = running_total_loss / num_batches
+        metrics["loss_r"] = running_loss_r / num_batches
+        metrics["loss_g"] = running_loss_g / num_batches
+        metrics["loss_b"] = running_loss_b / num_batches
         return metrics
 
     def evaluate(self, loader):
         self.model.eval()
-        running_loss = 0.0
+        running_loss_r = 0.0
+        running_loss_g = 0.0
+        running_loss_b = 0.0
+        running_total_loss = 0.0
         all_preds = []
         all_labels = []
         with torch.no_grad():
@@ -91,19 +114,37 @@ class Train_model_RGB:
                 image_b = batch["image_b"].to(self.device)
                 labels = batch["label"].float().to(self.device)
 
-                outputs = self.model(image_r, image_g, image_b)
-                loss = self.criterion(outputs, labels)
-                running_loss += loss.item()
-                probs = torch.sigmoid(outputs)
-                preds = (probs >= 0.6).long()
-                all_preds.append(preds.cpu())
-                all_labels.append(labels.cpu())
+                logit_r, logit_g, logit_b = self.model(image_r, image_g, image_b)
+                # 2. Tính 3 hàm Loss riêng biệt cho 3 nhánh
+                loss_r = self.criterion(logit_r, labels)
+                loss_g = self.criterion(logit_g, labels)
+                loss_b = self.criterion(logit_b, labels)
+                # 3. Tổng hợp Loss và truyền ngược (cộng lại hoặc chia 3 đều được)
+                total_loss = (loss_r + loss_g + loss_b) / 3.0
+                # Cập nhật running loss cho từng nhánh và tổng thể
+                running_total_loss += total_loss.item()
+                running_loss_r += loss_r.item()
+                running_loss_g += loss_g.item()
+                running_loss_b += loss_b.item()
 
-        epoch_loss = running_loss / len(loader)
+                # Gọi hàm Soft Voting từ file utils
+                preds, _ = get_soft_voting_preds(
+                    logit_r, logit_g, logit_b, threshold=0.6
+                )
+                all_preds.append(preds.detach().cpu())
+                all_labels.append(labels.detach().cpu())
+
         y_pred = torch.cat(all_preds).numpy().flatten()
         y_true = torch.cat(all_labels).numpy().flatten()
+        # Tính trung bình cho cả epoch
+        num_batches = len(loader)
         metrics = self._calculate_metrics_from_arrays(y_true, y_pred)
-        metrics["loss"] = epoch_loss
+
+        # Lưu cả 4 loss vào dictionary trả về
+        metrics["loss_total"] = running_total_loss / num_batches
+        metrics["loss_r"] = running_loss_r / num_batches
+        metrics["loss_g"] = running_loss_g / num_batches
+        metrics["loss_b"] = running_loss_b / num_batches
         return metrics
 
     def fit(
@@ -139,14 +180,21 @@ class Train_model_RGB:
             train_results = self.train_one_epoch(train_loader)
             val_results = self.evaluate(val_loader)
 
-            train_loss, train_f1 = train_results["loss"], train_results["f1"]
+            # Lấy ĐÚNG TÊN các loss đã lưu trong dictionary
+            train_loss = train_results["loss_total"]
+            train_loss_r = train_results["loss_r"]
+            train_loss_g = train_results["loss_g"]
+            train_loss_b = train_results["loss_b"]
+            train_f1 = train_results["f1"]
             train_acc, train_prec, train_rec = (
                 train_results["accuracy"],
                 train_results["precision"],
                 train_results["recall"],
             )
 
-            val_loss, val_f1 = val_results["loss"], val_results["f1"]
+            # Lấy Validation Loss
+            val_loss = val_results["loss_total"]
+            val_f1 = val_results["f1"]
             val_acc, val_prec, val_rec = (
                 val_results["accuracy"],
                 val_results["precision"],
@@ -154,75 +202,23 @@ class Train_model_RGB:
             )
 
             print(
-                f"Epoch {epoch+1} | Train Loss: {train_loss:.4f} | Train Accuracy: {train_acc:.4f} | Train Recall: {train_rec:.4f} | Train Precision: {train_prec:.4f} | Train F1: {train_f1:.4f} \n Val Loss: {val_loss:.4f} | Val Accuracy: {val_acc:.4f} |Val Recall: {val_rec:.4f} |Val Precision: {val_prec:.4f} | Val F1: {val_f1:.4f}"
+                f"Epoch {epoch+1} | Train Loss: {train_loss:.4f} | Train Accuracy: {train_acc:.4f} | Train Recall: {train_rec:.4f} | Train Precision: {train_prec:.4f} | Train F1: {train_f1:.4f} \n   Val Loss: {val_loss:.4f} | Val Accuracy: {val_acc:.4f} |Val Recall: {val_rec:.4f} |Val Precision: {val_prec:.4f} | Val F1: {val_f1:.4f}"
             )
-
-            # ========================================================
-            # ANOMALY DETECTION
-            # ========================================================
-            if epoch > 0:
-                delta_loss = val_loss - prev_val_loss
-                spike_ratio = (delta_loss / (prev_val_loss + 1e-8)) * 100
-
-                if spike_ratio > SPIKE_THRESHOLD_PERCENT:
-                    anomaly_dir = os.path.dirname(best_model_path)
-                    anomaly_folder = os.path.join(anomaly_dir, "anomaly_epochs")
-                    os.makedirs(anomaly_folder, exist_ok=True)
-                    anomaly_path = os.path.join(
-                        anomaly_folder, f"anomaly_spike_epoch_{epoch+1}.pth"
-                    )
-
-                    print(
-                        f"\n[CẢNH BÁO ĐỎ] Phát hiện Val Loss nhảy vọt tại Epoch {epoch+1}!"
-                    )
-                    print(
-                        f"   - Val Loss cũ: {prev_val_loss:.4f} -> Val Loss mới: {val_loss:.4f}"
-                    )
-                    print(
-                        f"   - Tỷ lệ tăng: +{spike_ratio:.2f}% (Ngưỡng: {SPIKE_THRESHOLD_PERCENT}%)"
-                    )
-
-                    torch.save(
-                        {
-                            "epoch": epoch + 1,
-                            "model_state_dict": self.model.state_dict(),
-                            "optimizer_state_dict": self.optimizer.state_dict(),
-                            "spike_info": {
-                                "previous_val_loss": float(prev_val_loss),
-                                "current_val_loss": float(val_loss),
-                                "delta_loss": float(delta_loss),
-                                "spike_ratio_percent": float(spike_ratio),
-                            },
-                            "train_loss": float(train_loss),
-                            "val_f1": float(val_f1),
-                            "train_accuracy": float(train_acc),
-                            "train_precision": float(train_prec),
-                            "train_recall": float(train_rec),
-                            "train_f1": float(train_f1),
-                            "learning_rate": self.optimizer.param_groups[0]["lr"],
-                        },
-                        anomaly_path,
-                    )
-                    print(f"   -> Đã lưu bất thường tại: {anomaly_path}\n")
-
-                    if not Config.Turn_WandB_Off:
-                        wandb.log(
-                            {"Anomaly Spike Ratio (%)": spike_ratio, "epoch": epoch + 1}
-                        )
-
-            prev_val_loss = val_loss
 
             # === WANDB LOGGING ===
             if not Config.Turn_WandB_Off:
                 wandb.log(
                     {
                         "epoch": epoch + 1,
-                        "Train Loss": train_loss,
+                        "Train Loss Total": train_loss,
+                        "Train Loss R": train_loss_r,
+                        "Train Loss G": train_loss_g,
+                        "Train Loss B": train_loss_b,
                         "Train Accuracy": train_acc,
                         "Train Precision": train_prec,
                         "Train Recall": train_rec,
                         "Train F1": train_f1,
-                        "Val Loss": val_loss,
+                        "Val Loss Total": val_loss,
                         "Val F1": val_f1,
                         "Val Precision": val_prec,
                         "Val Recall": val_rec,
@@ -238,6 +234,9 @@ class Train_model_RGB:
                     [
                         epoch + 1,
                         train_loss,
+                        train_loss_r,
+                        train_loss_g,
+                        train_loss_b,
                         train_acc,
                         train_prec,
                         train_rec,
@@ -249,7 +248,6 @@ class Train_model_RGB:
                         val_prec,
                     ]
                 )
-
             # Lưu Best Checkpoint
             if val_f1 > best_val_f1:
                 best_val_f1 = val_f1
@@ -311,6 +309,10 @@ class Train_model_RGB:
                         "val_precision": float(val_prec),
                         "val_recall": float(val_rec),
                         "val_accuracy": float(val_acc),
+                        "train_loss": float(train_loss),
+                        "train_loss_r": float(train_loss_r),
+                        "train_loss_g": float(train_loss_g),
+                        "train_loss_b": float(train_loss_b),
                         "train_accuracy": float(train_acc),
                         "train_precision": float(train_prec),
                         "train_recall": float(train_rec),

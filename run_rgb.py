@@ -7,11 +7,13 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 import os, csv, json, argparse, wandb, numpy as np
+from sklearn.metrics import confusion_matrix
 
 from configs.default_configs import Config
 from src.datasets.breast_cancer_dataframe import build_metadata_csv, get_pos_weight
 from src.datasets.split_dataset import main as split_main
 from src.datasets.breast_cancer_dataloader_rgb import create_dataloader_rgb
+from src.utils.soft_voting import get_soft_voting_preds
 from src.models.rgb_soft_voting import RGBSoftVotingModel
 from src.training.train_rgb import Train_model_RGB
 from src.utils.seed import set_seed
@@ -23,12 +25,8 @@ def parse_args():
     parser.add_argument(
         "--build-data", action="store_true", help="Rebuild metadata CSV before training"
     )
-    parser.add_argument(
-        "--lr", type=float, default=1e-4, help="Base learning rate"
-    )
-    parser.add_argument(
-        "--batch-size", type=int, default=32, help="Batch size"
-    )
+    parser.add_argument("--lr", type=float, default=1e-4, help="Base learning rate")
+    parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
     parser.add_argument(
         "--epochs", type=int, default=30, help="Number of training epochs"
     )
@@ -57,14 +55,11 @@ def evaluate_metrics_rgb(model, dataloader, device):
             image_b = batch["image_b"].to(device)
             labels = batch["label"].to(device)
 
-            logits = model(image_r, image_g, image_b)
-            probs = torch.sigmoid(logits)
-            preds = (probs >= 0.6).long()
+            logit_r, logit_g, logit_b = model(image_r, image_g, image_b)
+            preds, _ = get_soft_voting_preds(logit_r, logit_g, logit_b, threshold=0.6)
 
             all_preds.append(preds.cpu())
             all_labels.append(labels.cpu())
-
-    from sklearn.metrics import confusion_matrix
 
     y_pred = torch.cat(all_preds).numpy().flatten()
     y_true = torch.cat(all_labels).numpy().flatten()
@@ -120,6 +115,9 @@ def main(args):
                 [
                     "epoch",
                     "train_loss",
+                    "train_loss_r",
+                    "train_loss_g",
+                    "train_loss_b",
                     "train_accuracy",
                     "train_precision",
                     "train_recall",
@@ -169,12 +167,14 @@ def main(args):
     optimizer = Adam(model.parameters(), lr=Config.BASE_LR)
 
     # ===== Trainer RGB =====
-    trainer = Train_model_RGB(model, optimizer, criterion, Config.DEVICE, scheduler=None)
+    trainer = Train_model_RGB(
+        model, optimizer, criterion, Config.DEVICE, scheduler=None
+    )
     best_epoch_num = trainer.fit(
         train_loader=train_loader,
         val_loader=val_loader,
         epochs=Config.EPOCHS,
-        patience=5,
+        patience= None,  # Không dùng Early Stopping
         log_path=LOG_PATH,
         best_model_path=BEST_MODEL_PATH,
         last_model_path=LAST_MODEL_PATH,
@@ -187,7 +187,9 @@ def main(args):
     checkpoint = torch.load(BEST_MODEL_PATH, map_location=Config.DEVICE)
     model.load_state_dict(checkpoint["model_state_dict"])
 
-    metrics = evaluate_metrics_rgb(model=model, dataloader=test_loader, device=Config.DEVICE)
+    metrics = evaluate_metrics_rgb(
+        model=model, dataloader=test_loader, device=Config.DEVICE
+    )
 
     print("[INFO] Evaluation results:")
     for k, v in metrics.items():

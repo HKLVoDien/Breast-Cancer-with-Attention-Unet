@@ -9,13 +9,6 @@ from torch.utils.data import Dataset
 
 
 class BreastCancerDatasetRGB(Dataset):
-    """
-    Giống BreastCancerDataset nhưng trả về 3 tensor riêng biệt cho mỗi kênh màu:
-      - image_r: ảnh chỉ giữ kênh R, 2 kênh còn lại = 0, shape (3, H, W)
-      - image_g: ảnh chỉ giữ kênh G, 2 kênh còn lại = 0, shape (3, H, W)
-      - image_b: ảnh chỉ giữ kênh B, 2 kênh còn lại = 0, shape (3, H, W)
-    Mỗi tensor được nhân 3 lần (repeat channel) để nhánh AttentionUNET nhận in_channels=3.
-    """
 
     def __init__(self, csv_path, transform=None):
         self.df = pd.read_csv(csv_path)
@@ -35,14 +28,10 @@ class BreastCancerDatasetRGB(Dataset):
         if self.transform:
             image = self.transform(image)  # (3, H, W)
 
-        # Tách từng kênh màu, giữ shape (3, H, W) bằng cách repeat
+        # Tách từng kênh màu
         r = image[0:1, :, :]  # (1, H, W)
         g = image[1:2, :, :]
         b = image[2:3, :, :]
-
-        image_r = r.repeat(3, 1, 1)  # (3, H, W)
-        image_g = g.repeat(3, 1, 1)
-        image_b = b.repeat(3, 1, 1)
 
         if "target" in self.df.columns:
             target = int(self.df.target.values[idx])
@@ -50,9 +39,9 @@ class BreastCancerDatasetRGB(Dataset):
             target = None
 
         return {
-            "image_r": image_r,
-            "image_g": image_g,
-            "image_b": image_b,
+            "image_r": r,
+            "image_g": g,
+            "image_b": b,
             "label": target,
             "patient_id": patient_id,
             "x": x_coord,
@@ -65,10 +54,12 @@ if __name__ == "__main__":
 
     CSV_PATH = "data/metadata/idc_metadata.csv"
 
-    test_transform = transforms.Compose([
-        transforms.Resize((48, 48)),
-        transforms.ToTensor(),
-    ])
+    test_transform = transforms.Compose(
+        [
+            transforms.Resize((48, 48)),
+            transforms.ToTensor(),
+        ]
+    )
 
     dataset = BreastCancerDatasetRGB(csv_path=CSV_PATH, transform=test_transform)
     print("Dataset length:", len(dataset))
