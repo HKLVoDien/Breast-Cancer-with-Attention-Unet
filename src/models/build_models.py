@@ -7,6 +7,7 @@ from src.models.unet import UNET
 from src.models.attention_unet import AttentionUNET
 from src.models.resnet import ResNet
 from src.models.monai_attention_unet import MonaiAttentionUNet
+from src.models.rgb_soft_voting import RGBSoftVotingModel
 import torch
 
 
@@ -29,10 +30,13 @@ def build_model(name: str, **kwargs):
     elif name == "monai_attention_unet":
         return MonaiAttentionUNet(**kwargs)
 
+    elif name == "rgb_soft_voting":
+        return RGBSoftVotingModel()
+
     else:
         raise ValueError(
             f"Unknown model '{name}'. "
-            "Available: unet | attention_unet | attention_unet_v2 | attention_unet_v3 | resnet | monai_attention_unet"
+            "Available: unet | attention_unet | attention_unet_v2 | attention_unet_v3 | resnet | monai_attention_unet | rgb_soft_voting"
         )
 
 
