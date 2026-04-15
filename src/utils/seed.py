@@ -27,4 +27,4 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
     
     # 6. Ép buộc PyTorch sử dụng thuật toán tất định (có thể làm chậm tốc độ train một chút)
-    torch.use_deterministic_algorithms(True, warn_only=True)
+    #torch.use_deterministic_algorithms(True, warn_only=True)
