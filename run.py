@@ -43,26 +43,26 @@ def parse_args():
             "unet",
             "attention_unet",
             "attention_unet_v2",
-            "attention_unet_v3",
+            "ca_attention_unet",
             "resnet",
             "monai_attention_unet",
         ],
         help="Model to train",
     )
     parser.add_argument(
-        "--max-lr", type=float, default=1e-3, help="Maximum learning rate"
+        "--max-lr", type=float, default=1e-4, help="Maximum learning rate"
     )
     parser.add_argument(
         "--lr", type=float, default=1e-4, help="Base learning rate for CyclicLR"
     )
-    parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
+    parser.add_argument("--batch-size", type=int, default=128, help="Batch size")
     parser.add_argument(
         "--epochs", type=int, default=30, help="Number of training epochs"
     )
     parser.add_argument(
         "--wandb-project",
         type=str,
-        default="Breast-Cancer-IDC",
+        default="Breast-Cancer-IDC-Project",
         help="WandB project name for logging",
     )
     return parser.parse_args()
@@ -239,7 +239,7 @@ if __name__ == "__main__":
         find_lr(model_name=args.model)
         print("[INFO] Learning rate finder completed.")
         exit(0)
-    # Chọn mô hình để huấn luyện: --model "attention_unet, unet, resnet"  --lr 1e-4 --batch-size 128 --epochs 200 --wandb-project "Breast-Cancer-IDC"
+    # Chọn mô hình để huấn luyện: --model "attention_unet, unet, resnet, ca_attention_unet, attention_unet_v2"  --lr 1e-4 --batch-size 128 --epochs 200 --wandb-project "Breast-Cancer-IDC"
     print(f"[INFO] Training model: {args.model}")
     print("[INFO] Starting training...")
     main(args)

@@ -24,7 +24,7 @@ class Config:
     TEST_DROP_LAST = False
     # Training Hyperparameters
     EPOCHS = 30
-    BATCH_SIZE = 32
+    BATCH_SIZE = 128 # Cập nhật sau khi thử nghiệm với batch size lớn hơn
     BASE_LR = 1e-4 # Cập nhật sau khi dùng LR Finder
     MAX_LR = 1e-3 # Cập nhật sau khi dùng LR Finder
 
