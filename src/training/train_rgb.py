@@ -131,9 +131,7 @@ class Train_model_RGB:
                 )
                 all_preds.append(preds.detach().cpu())
                 all_labels.append(labels.detach().cpu())
-        # Scheduler step sau mỗi epoch (nếu có)
-        if self.scheduler is not None:
-            self.scheduler.step()
+
         y_pred = torch.cat(all_preds).numpy().flatten()
         y_true = torch.cat(all_labels).numpy().flatten()
         # Tính trung bình cho cả epoch
