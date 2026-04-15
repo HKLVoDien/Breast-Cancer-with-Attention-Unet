@@ -16,15 +16,34 @@ from src.training.evaluation_metrics import evaluate_metrics
 from src.utils.model_utils import load_best_model
 from src.utils.seed import set_seed
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--wandb-project", type=str, required=True, help="Tên dự án WandB của phiên bị ngắt (Ví dụ: Breast-Cancer-IDC_150_epochs)")
-    parser.add_argument("--exp-dir", type=str, required=True, help="Đường dẫn tới thư mục kết quả bị ngắt (Ví dụ: results/attention_unet_bs32_lr0.0001_epochs150_2024_06_15)")
-    parser.add_argument("--wandb-id", type=str, required=True, help="Mã ID của phiên WandB bị ngắt (Ví dụ: 1a2b3c4d)")
-    parser.add_argument("--epochs", type=int, default=150, help="Tổng số epoch dự định chạy ban đầu")
+    parser.add_argument(
+        "--wandb-project",
+        type=str,
+        required=True,
+        help="Tên dự án WandB của phiên bị ngắt (Ví dụ: Breast-Cancer-IDC_150_epochs)",
+    )
+    parser.add_argument(
+        "--exp-dir",
+        type=str,
+        required=True,
+        help="Đường dẫn tới thư mục kết quả bị ngắt (Ví dụ: results/attention_unet_bs32_lr0.0001_epochs150_2024_06_15)",
+    )
+    parser.add_argument(
+        "--wandb-id",
+        type=str,
+        required=True,
+        help="Mã ID của phiên WandB bị ngắt (Ví dụ: 1a2b3c4d)",
+    )
+    parser.add_argument(
+        "--epochs", type=int, default=150, help="Tổng số epoch dự định chạy ban đầu"
+    )
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size cũ")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate cũ")
     return parser.parse_args()
+
 
 def main():
     args = parse_args()
@@ -45,8 +64,10 @@ def main():
     print(f"[INFO] Đang tải hiện trường từ: {LAST_MODEL_PATH}")
     checkpoint = torch.load(LAST_MODEL_PATH, map_location=Config.DEVICE)
     model_name = checkpoint.get("model", "attention_unet")
-    start_epoch = checkpoint["epoch"] # Ví dụ: Sẽ lấy ra số 130
-    print(f"[INFO] Khôi phục mô hình {model_name} | Tiếp tục chạy từ Epoch {start_epoch + 1}")
+    start_epoch = checkpoint["epoch"]  # Ví dụ: Sẽ lấy ra số 130
+    print(
+        f"[INFO] Khôi phục mô hình {model_name} | Tiếp tục chạy từ Epoch {start_epoch + 1}"
+    )
     # Đọc file best.pth để lấy kỷ lục F1 cũ (Tránh ghi đè nhầm)
 
     previous_best_f1 = 0.0
@@ -57,16 +78,30 @@ def main():
 
     # 3. Nối tiếp WandB
     if not Config.Turn_WandB_Off:
-        wandb.init(
-            project=f"{args.wandb_project}",
-            id=args.wandb_id,
-            resume="must"
-        )
+        wandb.init(project=f"{args.wandb_project}", id=args.wandb_id, resume="must")
 
     # 4. Tải DataLoader
-    train_loader = create_dataloader(Config.TRAIN_CSV, "train", Config.BATCH_SIZE, Config.TRAIN_SHUFFLE, Config.TRAIN_DROP_LAST)
-    val_loader = create_dataloader(Config.VAL_CSV, "val", Config.BATCH_SIZE, Config.VAL_SHUFFLE, Config.VAL_DROP_LAST)
-    test_loader = create_dataloader(Config.TEST_CSV, "test", Config.BATCH_SIZE, Config.TEST_SHUFFLE, Config.TEST_DROP_LAST)
+    train_loader = create_dataloader(
+        Config.TRAIN_CSV,
+        "train",
+        Config.BATCH_SIZE,
+        Config.TRAIN_SHUFFLE,
+        Config.TRAIN_DROP_LAST,
+    )
+    val_loader = create_dataloader(
+        Config.VAL_CSV,
+        "val",
+        Config.BATCH_SIZE,
+        Config.VAL_SHUFFLE,
+        Config.VAL_DROP_LAST,
+    )
+    test_loader = create_dataloader(
+        Config.TEST_CSV,
+        "test",
+        Config.BATCH_SIZE,
+        Config.TEST_SHUFFLE,
+        Config.TEST_DROP_LAST,
+    )
 
     # 5. Khôi phục Mô hình và Thuật toán tối ưu (Cực kỳ quan trọng)
     model = build_model(model_name, in_channels=3).to(Config.DEVICE)
@@ -84,26 +119,18 @@ def main():
         train_loader=train_loader,
         val_loader=val_loader,
         epochs=args.epochs,
-        patience=5,
+        patience=None,  # Không dùng Early Stopping để đảm bảo chạy đủ số epoch đã định
         log_path=LOG_PATH,
         best_model_path=BEST_MODEL_PATH,
         last_model_path=LAST_MODEL_PATH,
         model_name=model_name,
-        start_epoch=start_epoch, 
-        best_val_f1=previous_best_f1 # Truyền kỷ lục F1 cũ vào đây để tránh ghi đè nhầm
-        )
+        start_epoch=start_epoch,
+        best_val_f1=previous_best_f1,  # Truyền kỷ lục F1 cũ vào đây để tránh ghi đè nhầm
+    )
 
     # ==========================================
     # ĐÁNH GIÁ ĐA MỐC VÀ LƯU JSON GIỐNG RUN.PY
     # ==========================================
-    print("[INFO] Bắt đầu quá trình Đánh giá trên tập Test...")
-    all_metrics_to_save = {
-        "model": model_name,
-        "batch_size": Config.BATCH_SIZE,
-        "learning_rate": Config.BASE_LR,
-        "pos_weight": float(pos_weight_value)
-    }
-
     # ===== Load best model and evaluate =====
     print("[INFO] Bắt đầu quá trình Đánh giá trên tập Test...")
     print("[INFO] Loading best model for evaluation...")
@@ -128,7 +155,6 @@ def main():
                 "Test Recall": metrics["recall"],
                 "Test Precision": metrics["precision"],
                 "Test F1": metrics["f1"],
-                "Test AUC": metrics["auc"],
             }
         )
     metrics_to_save = {
@@ -141,7 +167,6 @@ def main():
         "recall": metrics["recall"],
         "precision": metrics["precision"],
         "f1": metrics["f1"],
-        "auc": metrics["auc"],
         "confusion_matrix": metrics["confusion_matrix"],
     }
     wandb.finish()  # Kết thúc phiên làm việc với WandB
@@ -149,6 +174,7 @@ def main():
     with open(METRICS_PATH, "w") as f:
         json.dump(metrics_to_save, f, indent=4)
     print(f"[INFO] Metrics saved to {METRICS_PATH}")
+
 
 if __name__ == "__main__":
     main()

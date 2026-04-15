@@ -97,12 +97,15 @@ def main(args):
                 [
                     "epoch",
                     "train_loss",
+                    "train_accuracy",
+                    "train_precision",
+                    "train_recall",
+                    "train_f1",
                     "val_loss",
-                    "F1_score",
-                    "AUC_score",
-                    "Precision",
-                    "Recall",
-                    "Accuracy",
+                    "val_accuracy",
+                    "val_recall",
+                    "val_precision",
+                    "val_f1",
                 ]
             )
 

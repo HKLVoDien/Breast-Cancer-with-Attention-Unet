@@ -4,7 +4,7 @@
 
 import torch
 import torch.nn as nn
-from src.models.soft_attention_unet import AttentionUNET
+from src.models.attention_unet import AttentionUNET
 
 
 class RGBSoftVotingModel(nn.Module):

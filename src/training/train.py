@@ -131,10 +131,6 @@ class Train_model:
         os.makedirs(all_epochs_dir, exist_ok=True)
         if milestones:
             print(f"[INFO] Các mốc lưu checkpoint: {milestones}")
-        # Anomaly Detection
-        prev_val_loss = float("inf")
-        SPIKE_THRESHOLD_PERCENT = 50.0
-
         for epoch in range(start_epoch, epochs):
             train_results = self.train_one_epoch(train_loader)
             val_results = self.evaluate(val_loader)
@@ -157,62 +153,6 @@ class Train_model:
             print(
                 f"Epoch {epoch+1} | Train Loss: {train_loss:.4f} | Train Accuracy: {train_acc:.4f} | Train Recall: {train_rec:.4f} | Train Precision: {train_prec:.4f} | Train F1: {train_f1:.4f} \n Val Loss: {val_loss:.4f} | Val Accuracy: {val_acc:.4f} |Val Recall: {val_rec:.4f} |Val Precision: {val_prec:.4f} | Val F1: {val_f1:.4f}"
             )
-            # ========================================================
-            # THỰC THI BẪY BẤT THƯỜNG (ANOMALY DETECTION)
-            # ========================================================
-            if epoch > 0:  # Bỏ qua epoch 1 vì chưa có dữ liệu so sánh
-                delta_loss = val_loss - prev_val_loss
-                spike_ratio = (delta_loss / (prev_val_loss + 1e-8)) * 100
-
-                if spike_ratio > SPIKE_THRESHOLD_PERCENT:
-                    anomaly_dir = os.path.dirname(best_model_path)
-                    anomaly_folder = os.path.join(anomaly_dir, "anomaly_epochs")
-                    os.makedirs(anomaly_folder, exist_ok=True)
-                    anomaly_path = os.path.join(
-                        anomaly_folder, f"anomaly_spike_epoch_{epoch+1}.pth"
-                    )
-
-                    print(
-                        f"\n[CẢNH BÁO ĐỎ] Phát hiện Val Loss nhảy vọt tại Epoch {epoch+1}!"
-                    )
-                    print(
-                        f"   - Val Loss cũ: {prev_val_loss:.4f} -> Val Loss mới: {val_loss:.4f}"
-                    )
-                    print(
-                        f"   - Tỷ lệ tăng: +{spike_ratio:.2f}% (Ngưỡng: {SPIKE_THRESHOLD_PERCENT}%)"
-                    )
-
-                    torch.save(
-                        {
-                            "epoch": epoch + 1,
-                            "model_state_dict": self.model.state_dict(),
-                            "optimizer_state_dict": self.optimizer.state_dict(),
-                            "spike_info": {
-                                "previous_val_loss": float(prev_val_loss),
-                                "current_val_loss": float(val_loss),
-                                "delta_loss": float(delta_loss),
-                                "spike_ratio_percent": float(spike_ratio),
-                            },
-                            "train_loss": float(train_loss),
-                            "val_f1": float(val_f1),
-                            "train_accuracy": float(train_acc),
-                            "train_precision": float(train_prec),
-                            "train_recall": float(train_rec),
-                            "train_f1": float(train_f1),
-                            "learning_rate": self.optimizer.param_groups[0]["lr"],
-                        },
-                        anomaly_path,
-                    )
-                    print(f"   -> Đã lưu bất thường tại: {anomaly_path}\n")
-
-                    # Tùy chọn: Đẩy tỷ lệ nhảy vọt này lên WandB để dễ nhìn trên đồ thị
-                    if not Config.Turn_WandB_Off:
-                        wandb.log(
-                            {"Anomaly Spike Ratio (%)": spike_ratio, "epoch": epoch + 1}
-                        )
-
-            # Cập nhật mốc Loss cho vòng lặp tiếp theo
-            prev_val_loss = val_loss
             # === WANDB LOGGING MLOPS ===
             if not Config.Turn_WandB_Off:
                 wandb.log(
@@ -243,10 +183,10 @@ class Train_model:
                         train_rec,
                         train_f1,
                         val_loss,
-                        val_f1,
                         val_acc,
                         val_rec,
-                        val_acc,
+                        val_prec,
+                        val_f1,
                     ]
                 )
 
