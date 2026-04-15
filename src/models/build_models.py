@@ -8,6 +8,7 @@ from src.models.attention_unet import AttentionUNET
 from src.models.resnet import ResNet
 from src.models.monai_attention_unet import MonaiAttentionUNet
 from src.models.rgb_soft_voting import RGBSoftVotingModel
+from src.models.CA_attention_unet import AttentionUNET as CA_AttentionUNET
 import torch
 
 
@@ -20,11 +21,10 @@ def build_model(name: str, **kwargs):
     elif name == "attention_unet":
         return AttentionUNET(**kwargs)
     elif name == "attention_unet_v2":
-        # Thêm dòng này: Khởi tạo bản V2 với 4 tầng (chiều sâu mới)
-        return AttentionUNET(features=[64, 128, 256], **kwargs)
-    elif name == "attention_unet_v3":
-        # Thêm dòng này: Khởi tạo bản V3 với giảm
+        # Thêm dòng này: Khởi tạo bản V2 với giảm
         return AttentionUNET(features=[16, 32, 64, 128], **kwargs)
+    elif name == "ca_attention_unet":
+        return CA_AttentionUNET(features=[16, 32, 64, 128], **kwargs)
     elif name == "resnet":
         return ResNet(pretrained=True)
     elif name == "monai_attention_unet":
@@ -36,7 +36,7 @@ def build_model(name: str, **kwargs):
     else:
         raise ValueError(
             f"Unknown model '{name}'. "
-            "Available: unet | attention_unet | attention_unet_v2 | attention_unet_v3 | resnet | monai_attention_unet | rgb_soft_voting"
+            "Available: unet | attention_unet | attention_unet_v2 | ca_attention_unet | resnet | monai_attention_unet | rgb_soft_voting"
         )
 
 
@@ -47,7 +47,7 @@ if __name__ == "__main__":
         "unet",
         "attention_unet",
         "attention_unet_v2",
-        "attention_unet_v3",
+        "ca_attention_unet",
         "resnet",
     ]
     for name in model_names:

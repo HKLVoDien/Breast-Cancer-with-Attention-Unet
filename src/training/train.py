@@ -57,9 +57,6 @@ class Train_model:
             loss.backward()
             self.optimizer.step()
 
-            # --- DÒNG NÀY CHO CYCLIC LR ---
-            if self.scheduler is not None:
-                self.scheduler.step()
             # ------------------------------
             running_loss += loss.item()
             # Thu thập dữ liệu để tính metrics ngay tại đây
@@ -67,7 +64,9 @@ class Train_model:
             preds = (probs >= 0.6).long()  # Khớp với threshold của bạn
             all_preds.append(preds.detach().cpu())
             all_labels.append(labels.detach().cpu())
-
+        # --- DÒNG NÀY CHO CYCLIC LR ---
+        if self.scheduler is not None:
+            self.scheduler.step()
         epoch_loss = running_loss / len(loader)
         y_pred = torch.cat(all_preds).numpy().flatten()
         y_true = torch.cat(all_labels).numpy().flatten()
@@ -155,7 +154,6 @@ class Train_model:
                 val_results["recall"],
             )
 
-        
             print(
                 f"Epoch {epoch+1} | Train Loss: {train_loss:.4f} | Train Accuracy: {train_acc:.4f} | Train Recall: {train_rec:.4f} | Train Precision: {train_prec:.4f} | Train F1: {train_f1:.4f} \n Val Loss: {val_loss:.4f} | Val Accuracy: {val_acc:.4f} |Val Recall: {val_rec:.4f} |Val Precision: {val_prec:.4f} | Val F1: {val_f1:.4f}"
             )

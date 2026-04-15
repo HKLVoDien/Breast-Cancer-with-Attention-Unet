@@ -72,9 +72,6 @@ class Train_model_RGB:
             total_loss.backward()
             self.optimizer.step()
 
-            if self.scheduler is not None:
-                self.scheduler.step()
-
             # Cập nhật running loss cho từng nhánh và tổng thể
             running_total_loss += total_loss.item()
             running_loss_r += loss_r.item()
@@ -85,7 +82,8 @@ class Train_model_RGB:
             preds, _ = get_soft_voting_preds(logit_r, logit_g, logit_b, threshold=0.6)
             all_preds.append(preds.detach().cpu())
             all_labels.append(labels.detach().cpu())
-
+        if self.scheduler is not None:
+            self.scheduler.step()
         y_pred = torch.cat(all_preds).numpy().flatten()
         y_true = torch.cat(all_labels).numpy().flatten()
         # Tính trung bình cho cả epoch
@@ -133,7 +131,9 @@ class Train_model_RGB:
                 )
                 all_preds.append(preds.detach().cpu())
                 all_labels.append(labels.detach().cpu())
-
+        # Scheduler step sau mỗi epoch (nếu có)
+        if self.scheduler is not None:
+            self.scheduler.step()
         y_pred = torch.cat(all_preds).numpy().flatten()
         y_true = torch.cat(all_labels).numpy().flatten()
         # Tính trung bình cho cả epoch
@@ -172,9 +172,6 @@ class Train_model_RGB:
         os.makedirs(all_epochs_dir, exist_ok=True)
         if milestones:
             print(f"[INFO] Các mốc lưu checkpoint: {milestones}")
-
-        prev_val_loss = float("inf")
-        SPIKE_THRESHOLD_PERCENT = 50.0
 
         for epoch in range(start_epoch, epochs):
             train_results = self.train_one_epoch(train_loader)

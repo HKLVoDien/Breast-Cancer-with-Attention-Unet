@@ -1,9 +1,34 @@
-# Task: Thiết kế model Attention UNET cho phân loại ảnh y tế sử dụng PyTorch.
+# Task: Thiết kế model Attention UNET kết hợp Channel Attention cho phân loại ảnh y tế sử dụng PyTorch.
 # Author: Lê Văn Hoàn
 # Version: 1.0
 import torch
 import torch.nn as nn
 import torchvision.transforms.functional as TF
+
+
+# ==========================================
+# 1. KHỐI CHANNEL ATTENTION (Lấy từ tư tưởng của CBAM)
+# ==========================================
+class ChannelAttention(nn.Module):
+    def __init__(self, in_planes, ratio=16):
+        super(ChannelAttention, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+
+        # Shared MLP (Mạng nơ-ron dùng chung)
+        self.fc = nn.Sequential(
+            nn.Conv2d(in_planes, in_planes // ratio, 1, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_planes // ratio, in_planes, 1, bias=False),
+        )
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_out = self.fc(self.avg_pool(x))
+        max_out = self.fc(self.max_pool(x))
+        # Cộng hai nhánh lại và qua Sigmoid để ra trọng số cho từng kênh
+        out = avg_out + max_out
+        return self.sigmoid(out)
 
 
 class DoubleConv(nn.Module):
@@ -17,9 +42,16 @@ class DoubleConv(nn.Module):
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
         )
+        # TÍCH HỢP CHANNEL ATTENTION VÀO ĐUÔI DOUBLE CONV
+        ratio = 16 if out_channels >= 16 else out_channels
+        self.ca = ChannelAttention(out_channels, ratio=ratio)
 
     def forward(self, x):
-        return self.conv(x)
+        # Đi qua 2 lớp chập và ReLU
+        x = self.conv(x)
+        # Đi qua khối Channel Attention để nhân trọng số (Lọc "CÁI GÌ")
+        x = x * self.ca(x)
+        return x
 
 
 class AttentionGate(nn.Module):
@@ -70,8 +102,8 @@ class AttentionGate(nn.Module):
 class AttentionUNET(nn.Module):
     def __init__(
         self,
-        in_channels=1,
-        features=[16, 32, 64, 128],
+        in_channels=3,
+        features=[64, 128, 256],
     ):
         super(AttentionUNET, self).__init__()
         self.ups = nn.ModuleList()
