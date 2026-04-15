@@ -9,6 +9,7 @@ from torchvision import transforms
 from .breast_cancer_dataset import BreastCancerDataset
 from configs.default_configs import Config
 
+
 # ==========================================
 # Khai báo hàm seed_worker cho DataLoader
 # ==========================================
@@ -17,6 +18,7 @@ def seed_worker(worker_id):
     np.random.seed(worker_seed)
     random.seed(worker_seed)
 
+
 def get_transforms(split):
     if split == "train":
         return transforms.Compose(
@@ -24,6 +26,12 @@ def get_transforms(split):
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomVerticalFlip(),
                 transforms.RandomRotation(degrees=90),
+                transforms.ColorJitter(
+                    brightness=0.2,  # Độ sáng: Thay đổi ±20%
+                    contrast=0.2,  # Độ tương phản: Thay đổi ±20%
+                    saturation=0.2,  # Độ bão hòa màu (đậm/nhạt của thuốc nhuộm): ±20%
+                    hue=0.05,  # Sắc độ màu:(±5%)
+                ),
                 transforms.Resize((48, 48)),
                 transforms.ToTensor(),
                 transforms.Normalize(
@@ -32,14 +40,15 @@ def get_transforms(split):
             ]
         )
     else:  # val, test
-        return transforms.Compose([
-            transforms.Resize((48, 48)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-        ])
+        return transforms.Compose(
+            [
+                transforms.Resize((48, 48)),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
 
 
 def create_dataloader(
@@ -49,7 +58,7 @@ def create_dataloader(
     shuffle,
     drop_last,
     num_workers=2,
-    pin_memory=True
+    pin_memory=True,
 ):
     """
     DataLoader patch-level IDC
@@ -58,14 +67,13 @@ def create_dataloader(
     """
 
     dataset = BreastCancerDataset(
-        csv_path=dataframe_csv_path,
-        transform=get_transforms(split)
+        csv_path=dataframe_csv_path, transform=get_transforms(split)
     )
 
     # Khởi tạo generator với seed cố định từ file config
     g = torch.Generator()
     g.manual_seed(Config.SEED)
-    
+
     loader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -74,7 +82,7 @@ def create_dataloader(
         num_workers=num_workers,
         pin_memory=pin_memory,
         worker_init_fn=seed_worker,
-        generator=g
+        generator=g,
     )
 
     return loader

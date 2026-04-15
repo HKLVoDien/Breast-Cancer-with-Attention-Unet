@@ -29,6 +29,12 @@ def get_transforms_rgb(split):
                 transforms.RandomVerticalFlip(),
                 transforms.RandomRotation(degrees=90),
                 transforms.Resize((48, 48)),
+                transforms.ColorJitter(
+                    brightness=0.2,  # Độ sáng: Thay đổi ±20%
+                    contrast=0.2,  # Độ tương phản: Thay đổi ±20%
+                    saturation=0.2,  # Độ bão hòa màu (đậm/nhạt của thuốc nhuộm): ±20%
+                    hue=0.05,  # Sắc độ màu:(±5%)
+                ),
                 transforms.ToTensor(),
                 transforms.Normalize(
                     mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
