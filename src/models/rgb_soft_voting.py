@@ -13,7 +13,6 @@ class RGBSoftVotingModel(nn.Module):
       - Nhánh R: AttentionUNET nhận image_r
       - Nhánh G: AttentionUNET nhận image_g
       - Nhánh B: AttentionUNET nhận image_b
-    Kết quả: trung bình cộng 3 logit trước khi áp dụng sigmoid/loss.
     Loss vẫn dùng BCEWithLogitsLoss như các mô hình trước đó.
     """
 

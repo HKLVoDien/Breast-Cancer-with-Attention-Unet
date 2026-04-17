@@ -43,7 +43,7 @@ class DoubleConv(nn.Module):
             nn.ReLU(inplace=True),
         )
         # TÍCH HỢP CHANNEL ATTENTION VÀO ĐUÔI DOUBLE CONV
-        ratio = 16 if out_channels >= 16 else out_channels
+        ratio = 4 
         self.ca = ChannelAttention(out_channels, ratio=ratio)
 
     def forward(self, x):
