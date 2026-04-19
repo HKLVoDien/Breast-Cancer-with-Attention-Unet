@@ -43,7 +43,7 @@ class DoubleConv(nn.Module):
             nn.ReLU(inplace=True),
         )
         # TÍCH HỢP CHANNEL ATTENTION VÀO ĐUÔI DOUBLE CONV
-        ratio = 4 
+        ratio = 4 # Tỉ lệ giảm kênh trong MLP của Channel Attention
         self.ca = ChannelAttention(out_channels, ratio=ratio)
 
     def forward(self, x):

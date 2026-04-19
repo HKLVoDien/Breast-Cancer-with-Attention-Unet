@@ -26,7 +26,7 @@ class UNET(nn.Module):
     def __init__(
         self,
         in_channels=3,
-        features=[64, 128, 256],
+        features=[16, 32, 64, 128],
     ):
         super(UNET, self).__init__()
         self.ups = nn.ModuleList()
